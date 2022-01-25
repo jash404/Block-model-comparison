@@ -1,0 +1,32 @@
+{
+  "title": "Execute Time",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "title": "Enabled",
+      "description": "Enable ExecuteTime cell extension",
+      "default": true
+    },
+    "highlight": {
+      "type": "boolean",
+      "title": "Highlight",
+      "description": "Highlight the execution time on completion",
+      "default": true
+    },
+    "positioning": {
+      "type": "string",
+      "title": "Positioning",
+      "description": "How to position the execution time. Possible values are: \"left\", \"right\" or \"hover\".",
+      "default": "left",
+      "enum": ["left", "right", "hover"]
+    },
+    "minTime": {
+      "type": "number",
+      "title": "Minimum time to display (s)",
+      "description": "Minimum cell execution time in seconds to show timing info (0 means always)",
+      "default": 0
+    }
+  }
+}

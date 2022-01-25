@@ -1,0 +1,14 @@
+{
+    // Sidebar
+    // @jupyterlab/application-extension:sidebar
+    // Sidebar layout settings.
+    // *****************************************
+
+    // Overrides
+    // Overrides for where to show sidebar items
+    // e.g., {"jp-debugger-sidebar": "left"}
+    // You can also change this by right-clicking the sidebar icons.
+    "overrides": {
+        "jp-git-sessions": "left"
+    }
+}
