@@ -584,9 +584,3 @@ print(df3["sub1"].value_counts())
 
 
 
-
-# In[ ]:
-
-
-
-
