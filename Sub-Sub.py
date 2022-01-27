@@ -13,6 +13,7 @@ import functools
 import math
 import time
 import warnings
+from fractions import Fraction
 from collections import defaultdict
 from itertools import compress, islice
 from operator import itemgetter
@@ -77,22 +78,11 @@ df = pd.DataFrame()
 selection = project.get_selected()
 last_opacity = 255
 
-# For getting colours and the mapped names used in the model visualisation
-# np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
-with project.edit("legends/geocod") as legend:
-    colours = legend.colours
-    colour_names = legend.legend
-    colour_names = [each_string.lower() for each_string in colour_names]
-# Getting hex values of the colours
-colours = colours / 255
-for z in range(0, len(colour_names), 1):
-    real_colours.append(cc.to_hex(colours[z], keep_alpha=True))
+
 
 # Creating the array for storing data to be retrieved
-N = len(colour_names)
 global M
 M = len(selection)
-values = [[0 for i in range(M)] for j in range(N)]
 vis_collection = [0] * M
 var_collection = [0] * M
 index_map = [0] * M
@@ -108,13 +98,23 @@ if len(selection)<2:
     print("Please select two Block Models to compare, Try Again.")
     sys.exit()
 
+print("Enter X, Y and Z cooridnates of the smallest subblock of Block 1:")
+smallest_sub_size_block1=input()
+smallest_sub_size_block1=list(map(Fraction,smallest_sub_size_block1.split(' ')))
+smallest_sub_size_block1 = list(map(float, smallest_sub_size_block1))
+
+print("Enter X, Y and Z cooridnates of the smallest subblock of Block 2:")
+smallest_sub_size_block2=input()
+smallest_sub_size_block2=list(map(Fraction,smallest_sub_size_block2.split(' ')))
+smallest_sub_size_block2 = list(map(float, smallest_sub_size_block2))
+
 solidfilter = "No"
 solidfilter = input("Do you want to restrict your search space inside a solid (Yes/No): ")
 
 
-
 if (solidfilter=="Yes") or (solidfilter=="Y") or (solidfilter=="y"):
     print(solidfilter)
+    solidfilter = "Yes"
     solid_location=input("Put in the exact location of solid (ex:surfaces/Solid ) : ")
 # DATA GETTER
 
@@ -212,24 +212,14 @@ for item in selection:
                     if isinstance(checker[0], (str, int)):
                         selected_var = checker
                         var_collection[i] = selected_var
-                vis = bm.block_visibility
-                vis_collection[i] = vis
-                for domain in colour_names:
-                    values[j][i] = np.count_nonzero(selected_var == domain)
-                    j = j + 1
-                # Creating labels
-                names.append("Block" + str(i))
-                # For the confusion matrix
-                df["block" + str(i)] = pd.Series(selected_var)
-                i = i + 1
-
+                i=i+1
 
 # Getting "number of blocks" and the cooridnates of all those blocks
 # in the subblock model created for subblock-subblock comparison
 # ###################################################################################################################
-x_for_created_subblock = fractions.gcd(50 / 4, 50 / 4)
-y_for_created_subblock = fractions.gcd(25 / 4, 25 / 4)
-z_for_created_subblock = fractions.gcd(55 / 4, 55 / 4)
+x_for_created_subblock = fractions.gcd(smallest_sub_size_block1[0], smallest_sub_size_block2[0])
+y_for_created_subblock = fractions.gcd(smallest_sub_size_block1[1], smallest_sub_size_block2[1])
+z_for_created_subblock = fractions.gcd(smallest_sub_size_block1[2], smallest_sub_size_block2[2])
 number_of_blocks_in_created_subblock_model = (total_volume_of_block) / (
     x_for_created_subblock * y_for_created_subblock * z_for_created_subblock
 )
@@ -281,28 +271,6 @@ new_block_centroids = np.column_stack(
 
 # ###################################################################################################################
 
-# Visibility filterer
-if vis_compiler:
-    visfinal = vis_collection[0]
-    for q in range(1, len(vis_collection), 1):
-        visfinal = visfinal & vis_collection[q]
-
-    # The statement below removes all values in selected_var which have a corresponding false value
-    # in the same index location in vis
-    for z in range(0, len(var_collection), 1):
-        var_collection[z] = np.array(var_collection[z])[visfinal]
-
-    for d in range(0, M, 1):
-        # For the confusion matrix
-        df["block" + str(d)] = pd.Series(var_collection[d])
-        for domain, k in zip(colour_names, range(0, len(colour_names), 1)):
-            values[k][d] = np.count_nonzero(var_collection[d] == domain)
-# For the confusion matrix
-
-df.dropna(inplace=True)
-
-# For future operations
-# extents.tolist()
 
 print(1 * "\n")
 print("Number of centroids that will be compared: " + str(len(new_block_centroids)))
@@ -311,7 +279,7 @@ print(1 * "\n")
 
 
 
-if solidfilter is True:
+if solidfilter =="Yes":
     print("Doing solid filtering, this may take a couple minutes")
     with project.read(solid_location) as solid:
         facets = solid.facets
@@ -466,25 +434,56 @@ subblock_not_in_limits = list(set(subblock_not_in_limits))
 
 print("Number of blocks not in limits: " + str(len(subblock_not_in_limits)))
 
-
+print(1 * "\n")
 # In[13]:
 
 
 df3 = pd.DataFrame()
 gandu0 = list(domains_of_created_block_centroids[0])
 gandu1 = list(domains_of_created_block_centroids[1])
+df3["sub0"] = pd.Series(gandu0)
+df3["sub1"] = pd.Series(gandu1)
+
+points_that_match = []
+points_that_dont_match = []
+for points_index, (x, y) in enumerate(zip(gandu0, gandu1)):
+    if x == y:
+        points_that_match.append(points_index)
+    else:
+        points_that_dont_match.append(points_index)
+
+print(1 * "\n")
+print("Percenatge of space matching: "+str(100*len(points_that_match) / len(gandu0))+" %")
+# print("Percenatge of space not matching: "+str(100*len(points_that_dont_match) / len(gandu0))+" %")
+print(1 * "\n")
+
+
+# In[18]:
+
+
+print("Sub0:")
+print(df3["sub0"].value_counts())
+
+
+print(1 * "\n")
+print("Sub1:")
+print(df3["sub1"].value_counts())
+print(1 * "\n")
+
+number_to_restrict = int(input("Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "))
+
 
 # Feature to display first N elemnts only on confusion matrix
-N = 5
+
 sub0_domains_not_needed, sub0_domain_counts = np.unique(gandu0, return_counts=True)
 sub0_values = np.sort(np.asarray((sub0_domains_not_needed, sub0_domain_counts)).T)
 count_sort_ind = np.argsort(-sub0_domain_counts)
-sub0_domains_not_needed = list(sub0_domains_not_needed[count_sort_ind[N:]])
+sub0_domains_not_needed = list(sub0_domains_not_needed[count_sort_ind[number_to_restrict:]])
 
 sub1_domains_not_needed, sub1_domain_counts = np.unique(gandu1, return_counts=True)
 sub1_values = np.sort(np.asarray((sub1_domains_not_needed, sub1_domain_counts)).T)
 count_sort_ind = np.argsort(-sub1_domain_counts)
-sub1_domains_not_needed = list(sub1_domains_not_needed[count_sort_ind[N:]])
+sub1_domains_not_needed = list(sub1_domains_not_needed[count_sort_ind[number_to_restrict:]])
 
 df3["sub0_edited"] = pd.Series(gandu0)
 df3["sub0_edited"] = df3["sub0_edited"].replace(sub0_domains_not_needed, "others")
@@ -517,8 +516,7 @@ cm.show()
 
 # CONFUSION MATRIX FOR SUB TO SUB COMPARISON
 
-df3["sub0"] = pd.Series(gandu0)
-df3["sub1"] = pd.Series(gandu1)
+
 
 point_confusion_matrix_for_sub = pd.crosstab(
     df3["sub0"], df3["sub1"], rownames=["Sub0"], colnames=["Sub1"]
@@ -553,30 +551,7 @@ mt.savefig("Entire_Matrix.png", dpi=100)
 # In[24]:
 
 
-points_that_match = []
-points_that_dont_match = []
-for points_index, (x, y) in enumerate(zip(gandu0, gandu1)):
-    if x == y:
-        points_that_match.append(points_index)
-    else:
-        points_that_dont_match.append(points_index)
 
-print(1 * "\n")
-print("Percenatge of space matching: "+str(100*len(points_that_match) / len(gandu0))+" %")
-print("Percenatge of space not matching: "+str(100*len(points_that_dont_match) / len(gandu0))+" %")
-print(1 * "\n")
-
-
-# In[18]:
-
-
-print("Sub0:")
-print(df3["sub0"].value_counts())
-
-
-print(1 * "\n")
-print("Sub1:")
-print(df3["sub1"].value_counts())
 
 
 # In[ ]:
