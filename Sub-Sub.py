@@ -11,6 +11,7 @@ import ctypes
 import fractions
 import functools
 import math
+import timeit
 import time
 import warnings
 from fractions import Fraction
@@ -87,6 +88,13 @@ var_collection = [0] * M
 index_map = [0] * M
 number_of_parent_blocks = []
 reverse_grid_index = []
+x_res = []
+y_res = []
+z_res = []
+x_count = []
+y_count = []
+z_count = []
+
 extents = [[] for _ in range(M)]
 # number_of_parent_blocks=[]
 # i tells you the index of the block_model
@@ -137,24 +145,24 @@ for item in selection:
                 block_sizes = bm.block_sizes
                 block_centroids = bm.block_centroids
                 b = bm.block_resolution
-                x_res = float(b[0])
-                y_res = float(b[1])
-                z_res = float(b[2])
+                x_res .append(float(b[0]))
+                y_res .append(float(b[1]))
+                z_res .append(float(b[2]))
 
-                x_count = bm.column_count
-                y_count = bm.row_count
-                z_count = bm.slice_count
+                x_count .append(bm.column_count)
+                y_count .append(bm.row_count)
+                z_count .append(bm.slice_count)
 
-                totallength_x_dimension = x_res * x_count
-                totallength_y_dimension = y_res * y_count
-                totallength_z_dimension = z_res * z_count
+                totallength_x_dimension = x_res[0] * x_count[0]
+                totallength_y_dimension = y_res[0] * y_count[0]
+                totallength_z_dimension = z_res[0] * z_count[0]
 
                 index_map[i] = bm.block_to_grid_index
                 # index_map[i] = index_map[i].tolist()
                 number_of_parent_blocks.append(
                     len(np.unique(index_map[i], axis=0)))
                 total_volume_of_block = (
-                    number_of_parent_blocks[i] * x_res * y_res * z_res
+                    number_of_parent_blocks[i] * x_res[i] * y_res[i] * z_res[i]
                 )
 
                 # Creating a reverse grid index
@@ -191,7 +199,7 @@ for item in selection:
                 block_centroids = bm.convert_to_block_coordinates(
                     block_centroids)
                 block_centroids = block_centroids + 0.5 * np.array(
-                    [x_res, y_res, z_res]
+                    [x_res[i], y_res[i], z_res[i]]
                 )
                 # *************************************************************************************************
                 # Brute-force method
@@ -287,25 +295,36 @@ print("Number of centroids that will be compared: " +
       str(len(new_block_centroids)))
 print(1 * "\n")
 # In[9]:
-
-
+block_model_index = 0
+new_block_centroids_collection = []
 if solidfilter == "Yes":
-    print("Doing solid filtering, this may take a couple minutes")
-    with project.read(solid_location) as solid:
-        facets = solid.facets
-        facet_points = solid.points
+    for block_model_index, useless_completely in enumerate(selection):
+        print("Doing solid filtering, this may take a couple minutes")
+        with project.read(solid_location) as solid:
+            facets = solid.facets
+            facet_points = solid.points
 
-    with project.edit(selected_model) as bm:
-        facet_points = bm.convert_to_block_coordinates(facet_points)
-        facet_points = facet_points + 0.5 * np.array([x_res, y_res, z_res])
+        x_Resolution = x_res[block_model_index]
+        y_Resolution = y_res[block_model_index]
+        z_Resolution = z_res[block_model_index]
 
-    mesh = Trimesh(facet_points, facets, validate=True, use_embree=False)
-    ray = ray_triangle.RayMeshIntersector(mesh)
-    blocks_inside_solid = np.where(
-        contains_points(ray, new_block_centroids))[0]
-    blocks_inside_solid = new_block_centroids[blocks_inside_solid]
+        with project.edit(selected_model) as bm:
+            facet_points = bm.convert_to_block_coordinates(facet_points)
+            facet_points = facet_points + 0.5 * \
+                np.array([x_Resolution,  y_Resolution, z_Resolution])
 
-    new_block_centroids = blocks_inside_solid
+        mesh = Trimesh(facet_points, facets, validate=True, use_embree=False)
+        ray = ray_triangle.RayMeshIntersector(mesh)
+        blocks_inside_solid = np.where(
+            contains_points(ray, new_block_centroids))[0]
+        blocks_inside_solid = new_block_centroids[blocks_inside_solid]
+
+        new_block_centroids = (blocks_inside_solid)
+        new_block_centroids_collection.append(new_block_centroids)
+    # comparison = new_block_centroids_collection[0] == new_block_centroids_collection[1]
+    # equal_arrays = comparison.all()
+    print(len(new_block_centroids_collection[0]), len(
+        new_block_centroids_collection[1]))
     print(1 * "\n")
     print("Number of new centroids that will be compared after solid restriction: " +
           str(len(new_block_centroids)))
@@ -327,6 +346,7 @@ subblock_exists_for_orignal_block = 0
 outside_count_created_block = 0
 string_not_found = 0
 check = 0
+block_model_index = 0
 outside_indices_created_block = []
 
 for block_model_index, item in enumerate(selection):
@@ -347,11 +367,11 @@ for block_model_index, item in enumerate(selection):
                 leave=True,
             ):
                 index_x_of_created_centroid = math.floor(
-                    created_block_value[0] / x_res)
+                    created_block_value[0] / x_res[block_model_index])
                 index_y_of_created_centroid = math.floor(
-                    created_block_value[1] / y_res)
+                    created_block_value[1] / y_res[block_model_index])
                 index_z_of_created_centroid = math.floor(
-                    created_block_value[2] / z_res)
+                    created_block_value[2] / z_res[block_model_index])
 
                 # index_of_created_centroid = index_map[block_model_index].index(
                 #     [
