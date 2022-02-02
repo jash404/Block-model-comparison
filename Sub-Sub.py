@@ -88,6 +88,7 @@ var_collection = [0] * M
 index_map = [0] * M
 number_of_parent_blocks = []
 reverse_grid_index = []
+block_model_names = []
 x_res = []
 y_res = []
 z_res = []
@@ -101,17 +102,31 @@ extents = [[] for _ in range(M)]
 i = 0
 j = 0
 
+
+# * This cod below collects some data(names of models) for immediate use and makes some
+# * checks before program is started.
+for name_iterator in selection:
+    block_model_names.append(name_iterator.name)
+    if name_iterator.is_a(DenseBlockModel) == False and name_iterator.is_a(SubblockedBlockModel) == False:
+        print("Please select two Block Models to compare, Try Again.")
+        time.sleep(3)
+        sys.exit()
+
+
 if len(selection) < 2:
     print("Please select two Block Models to compare, Try Again.")
+    time.sleep(3)
     sys.exit()
 
-print("Enter X, Y and Z cooridnates of the smallest subblock of Block 1:")
+print("Enter X, Y and Z cooridnates of the smallest subblock of " +
+      str(block_model_names[0]) + "(Format: X Y Z):")
 smallest_sub_size_block1 = input()
 smallest_sub_size_block1 = list(
     map(Fraction, smallest_sub_size_block1.split(' ')))
 smallest_sub_size_block1 = list(map(float, smallest_sub_size_block1))
 
-print("Enter X, Y and Z cooridnates of the smallest subblock of Block 2:")
+print("Enter X, Y and Z cooridnates of the smallest subblock of " +
+      str(block_model_names[1]) + " (Format: X Y Z):")
 smallest_sub_size_block2 = input()
 smallest_sub_size_block2 = list(
     map(Fraction, smallest_sub_size_block2.split(' ')))
@@ -130,104 +145,103 @@ if (solidfilter == "Yes") or (solidfilter == "Y") or (solidfilter == "y"):
 # DATA GETTER
 
 for item in selection:
-
     print(item.name)
     # Setting outer array back to 0, for new block
     j = 0
     nn = 0
-    if item.is_a(DenseBlockModel) or item.is_a(SubblockedBlockModel):
-        selected_model = item
-        # Checker for point stuff
-        if point_checker:
-            # Getting all block details
-            with project.edit(selected_model) as bm:
 
-                block_sizes = bm.block_sizes
-                block_centroids = bm.block_centroids
-                b = bm.block_resolution
-                x_res .append(float(b[0]))
-                y_res .append(float(b[1]))
-                z_res .append(float(b[2]))
+    selected_model = item
+    # Checker for point stuff
+    if point_checker:
+        # Getting all block details
+        with project.edit(selected_model) as bm:
 
-                x_count .append(bm.column_count)
-                y_count .append(bm.row_count)
-                z_count .append(bm.slice_count)
+            block_sizes = bm.block_sizes
+            block_centroids = bm.block_centroids
+            b = bm.block_resolution
+            x_res .append(float(b[0]))
+            y_res .append(float(b[1]))
+            z_res .append(float(b[2]))
 
-                totallength_x_dimension = x_res[0] * x_count[0]
-                totallength_y_dimension = y_res[0] * y_count[0]
-                totallength_z_dimension = z_res[0] * z_count[0]
+            x_count .append(bm.column_count)
+            y_count .append(bm.row_count)
+            z_count .append(bm.slice_count)
 
-                index_map[i] = bm.block_to_grid_index
-                # index_map[i] = index_map[i].tolist()
-                number_of_parent_blocks.append(
-                    len(np.unique(index_map[i], axis=0)))
-                total_volume_of_block = (
-                    number_of_parent_blocks[i] * x_res[i] * y_res[i] * z_res[i]
+            totallength_x_dimension = x_res[0] * x_count[0]
+            totallength_y_dimension = y_res[0] * y_count[0]
+            totallength_z_dimension = z_res[0] * z_count[0]
+
+            index_map[i] = bm.block_to_grid_index
+            # index_map[i] = index_map[i].tolist()
+            number_of_parent_blocks.append(
+                len(np.unique(index_map[i], axis=0)))
+            total_volume_of_block = (
+                number_of_parent_blocks[i] * x_res[i] * y_res[i] * z_res[i]
+            )
+
+            # Creating a reverse grid index
+            # *************************************************************************************************
+            # Making keys for reverse_grid_index i.e all unique parent blocks
+            parent_block_indexes = np.unique(index_map[i], axis=0)
+
+            # Getting corresponding sub of those parent blocks
+            parent_block_sub_indexes = []
+            for parent_block_indexes_crawler in tqdm(
+                parent_block_indexes,
+                total=len(parent_block_indexes),
+                desc="Progress",
+                ncols=100,
+                ascii=True,
+                position=0,
+                leave=True,
+
+            ):
+                sub_bool_values = np.all(
+                    index_map[i] == (parent_block_indexes_crawler), axis=1
                 )
+                sub_indexes = np.where(sub_bool_values)[0]
+                parent_block_sub_indexes.append(sub_indexes)
 
-                # Creating a reverse grid index
-                # *************************************************************************************************
-                # Making keys for reverse_grid_index i.e all unique parent blocks
-                parent_block_indexes = np.unique(index_map[i], axis=0)
+            # Converting the keys to tuples and making the dict of reverse_grid_index
+            parent_block_indexes = [tuple(x) for x in parent_block_indexes]
+            reverse_grid_index.append(
+                dict(zip(parent_block_indexes, parent_block_sub_indexes))
+            )
+            # *************************************************************************************************
 
-                # Getting corresponding sub of those parent blocks
-                parent_block_sub_indexes = []
-                for parent_block_indexes_crawler in tqdm(
-                    parent_block_indexes,
-                    total=len(parent_block_indexes),
-                    desc="Progress",
-                    ncols=100,
-                    ascii=True,
-                    position=0,
-                    leave=True,
+            # Converting from world coordinates
+            block_centroids = bm.convert_to_block_coordinates(
+                block_centroids)
+            block_centroids = block_centroids + 0.5 * np.array(
+                [x_res[i], y_res[i], z_res[i]]
+            )
+            # *************************************************************************************************
+            # Brute-force method
+            # print("Calculating block extents")
 
-                ):
-                    sub_bool_values = np.all(
-                        index_map[i] == (parent_block_indexes_crawler), axis=1
+            for nn, useless_var in enumerate(block_centroids):
+                # print(len(extents[0]))
+                # print(len(extents[1]))
+                extents[i].append(
+                    (
+                        [
+                            (block_centroids[nn] -
+                                block_sizes[nn] / 2).tolist(),
+                            (block_centroids[nn] +
+                                block_sizes[nn] / 2).tolist(),
+                        ]
                     )
-                    sub_indexes = np.where(sub_bool_values)[0]
-                    parent_block_sub_indexes.append(sub_indexes)
-
-                # Converting the keys to tuples and making the dict of reverse_grid_index
-                parent_block_indexes = [tuple(x) for x in parent_block_indexes]
-                reverse_grid_index.append(
-                    dict(zip(parent_block_indexes, parent_block_sub_indexes))
                 )
-                # *************************************************************************************************
 
-                # Converting from world coordinates
-                block_centroids = bm.convert_to_block_coordinates(
-                    block_centroids)
-                block_centroids = block_centroids + 0.5 * np.array(
-                    [x_res[i], y_res[i], z_res[i]]
-                )
-                # *************************************************************************************************
-                # Brute-force method
-                # print("Calculating block extents")
-
-                for nn, useless_var in enumerate(block_centroids):
-                    # print(len(extents[0]))
-                    # print(len(extents[1]))
-                    extents[i].append(
-                        (
-                            [
-                                (block_centroids[nn] -
-                                 block_sizes[nn] / 2).tolist(),
-                                (block_centroids[nn] +
-                                 block_sizes[nn] / 2).tolist(),
-                            ]
-                        )
-                    )
-
-                # *************************************************************************************************
-                # # Checks all attributes of block and then chooses the one with discrete values
-                a_dict = bm.block_attributes.names
-                for key in a_dict:
-                    checker = bm.block_attributes[key]
-                    if isinstance(checker[0], (str, int)):
-                        selected_var = checker
-                        var_collection[i] = selected_var
-                i = i+1
+            # *************************************************************************************************
+            # # Checks all attributes of block and then chooses the one with discrete values
+            a_dict = bm.block_attributes.names
+            for key in a_dict:
+                checker = bm.block_attributes[key]
+                if isinstance(checker[0], (str, int)):
+                    selected_var = checker
+                    var_collection[i] = selected_var
+            i = i+1
 
 # Getting "number of blocks" and the cooridnates of all those blocks
 # in the subblock model created for subblock-subblock comparison
@@ -298,8 +312,8 @@ print(1 * "\n")
 block_model_index = 0
 new_block_centroids_collection = []
 if solidfilter == "Yes":
-    for block_model_index, useless_completely in enumerate(selection):
-        print("Doing solid filtering, this may take a couple minutes")
+    print("Doing solid filtering, this may take a couple minutes")
+    for block_model_index, real_block_model in enumerate(selection):
         with project.read(solid_location) as solid:
             facets = solid.facets
             facet_points = solid.points
@@ -308,7 +322,7 @@ if solidfilter == "Yes":
         y_Resolution = y_res[block_model_index]
         z_Resolution = z_res[block_model_index]
 
-        with project.edit(selected_model) as bm:
+        with project.edit(real_block_model) as bm:
             facet_points = bm.convert_to_block_coordinates(facet_points)
             facet_points = facet_points + 0.5 * \
                 np.array([x_Resolution,  y_Resolution, z_Resolution])
@@ -321,8 +335,9 @@ if solidfilter == "Yes":
 
         new_block_centroids = (blocks_inside_solid)
         new_block_centroids_collection.append(new_block_centroids)
-    # comparison = new_block_centroids_collection[0] == new_block_centroids_collection[1]
-    # equal_arrays = comparison.all()
+    comparison = new_block_centroids_collection[0] == new_block_centroids_collection[1]
+    equal_arrays = comparison.all()
+    print(equal_arrays)
     print(len(new_block_centroids_collection[0]), len(
         new_block_centroids_collection[1]))
     print(1 * "\n")
@@ -544,7 +559,8 @@ df3["sub1_edited"] = df3["sub1_edited"].replace(
 
 
 point_confusion_matrix_for_sub = pd.crosstab(
-    df3["sub0_edited"], df3["sub1_edited"], rownames=["Sub0"], colnames=["Sub1"]
+    df3["sub0_edited"], df3["sub1_edited"], rownames=[
+        block_model_names[0]], colnames=[block_model_names[1]]
 )
 point_confusion_matrix_for_sub = pd.DataFrame(point_confusion_matrix_for_sub)
 
@@ -572,7 +588,8 @@ cm.show()
 
 
 point_confusion_matrix_for_sub = pd.crosstab(
-    df3["sub0"], df3["sub1"], rownames=["Sub0"], colnames=["Sub1"]
+    df3["sub0"], df3["sub1"],  rownames=[
+        block_model_names[0]], colnames=[block_model_names[1]]
 )
 point_confusion_matrix_for_sub = pd.DataFrame(point_confusion_matrix_for_sub)
 
