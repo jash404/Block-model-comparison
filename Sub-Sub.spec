@@ -1,8 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_all
 
 datas = []
-datas += collect_data_files('mapteksdk')
+binaries = []
+hiddenimports = []
+tmp_ret = collect_all('mapteksdk')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 block_cipher = None
@@ -10,9 +13,9 @@ block_cipher = None
 
 a = Analysis(['Sub-Sub.py'],
              pathex=[],
-             binaries=[],
+             binaries=binaries,
              datas=datas,
-             hiddenimports=[],
+             hiddenimports=hiddenimports,
              hookspath=[],
              hooksconfig={},
              runtime_hooks=[],

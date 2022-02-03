@@ -337,9 +337,10 @@ if solidfilter == "Yes":
         new_block_centroids_collection.append(new_block_centroids)
     comparison = new_block_centroids_collection[0] == new_block_centroids_collection[1]
     equal_arrays = comparison.all()
-    print(equal_arrays)
-    print(len(new_block_centroids_collection[0]), len(
-        new_block_centroids_collection[1]))
+    if equal_arrays:
+        print("Found all blocks inside solid!")
+    # print(len(new_block_centroids_collection[0]), len(
+    #     new_block_centroids_collection[1]))
     print(1 * "\n")
     print("Number of new centroids that will be compared after solid restriction: " +
           str(len(new_block_centroids)))
@@ -510,12 +511,12 @@ print(1 * "\n")
 # In[18]:
 
 
-print("Sub0:")
+print(block_model_names[0])
 print(df3["sub0"].value_counts())
 
 
 print(1 * "\n")
-print("Sub1:")
+print(block_model_names[1])
 print(df3["sub1"].value_counts())
 print(1 * "\n")
 
