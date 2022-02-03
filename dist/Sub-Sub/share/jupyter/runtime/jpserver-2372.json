@@ -1,0 +1,13 @@
+{
+  "base_url": "/",
+  "hostname": "localhost",
+  "password": false,
+  "pid": 2372,
+  "port": 8892,
+  "root_dir": "C:\\Users\\jash.vira\\Downloads",
+  "secure": false,
+  "sock": "",
+  "token": "1f3da24d3693cb3f80a1f85f2bbe6c25cc74619e7d995b07",
+  "url": "http://localhost:8892/",
+  "version": "1.12.0"
+}

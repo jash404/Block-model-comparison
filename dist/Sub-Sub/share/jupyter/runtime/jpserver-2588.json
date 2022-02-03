@@ -1,0 +1,13 @@
+{
+  "base_url": "/",
+  "hostname": "localhost",
+  "password": false,
+  "pid": 2588,
+  "port": 8888,
+  "root_dir": "C:\\Users\\jash.vira\\Desktop\\code\\Block-model-comparison",
+  "secure": false,
+  "sock": "",
+  "token": "9e8f658c0d4c6bab43d2730c04ec3b06e34f89bafe72c607",
+  "url": "http://localhost:8888/",
+  "version": "1.12.0"
+}
