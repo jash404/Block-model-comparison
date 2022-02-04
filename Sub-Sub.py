@@ -207,6 +207,24 @@ for item in selection:
             reverse_grid_index.append(
                 dict(zip(parent_block_indexes, parent_block_sub_indexes))
             )
+            # *****************************************************************
+            # temp_dict_for_storing = {}
+            # for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
+            #                               ncols=100,
+            #                               ascii=True,
+            #                               position=0,
+            #                               leave=True,):
+            #     # We want to use the grid_index as the dictionary key. It needs to
+            #     # be converted to a tuple which can be hashed.
+            #     # Also, the grid_index is returned from the SDK as a float array
+            #     # which seems odd. So convert to an integer array as well.
+            #     grid_index_tuple = tuple(grid_index.astype(int))
+            #     if grid_index_tuple in temp_dict_for_storing:
+            #         temp_dict_for_storing[grid_index_tuple].append(block)
+            #     else:
+            #         temp_dict_for_storing[grid_index_tuple] = [block]
+            # reverse_grid_index.append(temp_dict_for_storing)
+
             # *************************************************************************************************
 
             # Converting from world coordinates
