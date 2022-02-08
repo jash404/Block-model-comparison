@@ -1,10 +1,18 @@
+#!/usr/bin/env python3.7
+# coding: utf-8
+
+# In[1]:
+
+
 # Imports for the Maptek Python SDK and additional libraries.
 import collections
 import copy
 import ctypes
 import fractions
 import math
+import sys
 import time
+import json
 from collections import defaultdict
 from itertools import islice
 
@@ -40,13 +48,16 @@ project = Project()
 # project.mcp_instance.mcp_dict['PRODUCT_LOCATION_INFO']  # Report out which application it connected to (Optional)
 
 
+# In[2]:
+
+
 # Initialisation
 selected_model = None
 selected_var = ""
 colours = ""
 real_colours = []
 vis = ""
-# ****************Bool swicthes for certain features*****************************************************************
+# ****************Bool switches for certain features*****************************************************************
 vis_compiler = False
 point_checker = True
 # ********************************************************************************************************************
@@ -55,22 +66,8 @@ df = pd.DataFrame()
 selection = project.get_selected()
 last_opacity = 255
 
-# For getting colours and the mapped names used in the model visualisation
-# np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
-with project.edit("legends/Domain 2") as legend:
-    colours = legend.colours
-    colour_names = legend.legend
-    colour_names = [each_string.lower() for each_string in colour_names]
-# Getting hex values of the colours
-colours = colours / 255
-for z in range(0, len(colour_names), 1):
-    real_colours.append(cc.to_hex(colours[z], keep_alpha=True))
-
-# Creating the array for storing data to be retrieved
-N = len(colour_names)
 global M
 M = len(selection)
-values = [[0 for i in range(M)] for j in range(N)]
 vis_collection = [0] * M
 var_collection = [0] * M
 index_map = [0] * M
@@ -79,11 +76,30 @@ extents = [[] for _ in range(M)]
 i = 0
 j = 0
 
+for name_iterator in selection:
+    block_model_name = name_iterator.name
+    if name_iterator.is_a(DenseBlockModel) == False and name_iterator.is_a(SubblockedBlockModel) == False:
+        print("Please select a Block Model to compare, Try Again.")
+        time.sleep(3)
+        sys.exit()
+
+
+if len(selection) < 1:
+    print("Please select a Block Model to compare, Try Again.")
+    time.sleep(3)
+    sys.exit()
+elif len(selection) > 1:
+    print("Please select only one Block Model to compare with the points, Try Again")
+    time.sleep(3)
+    sys.exit()
+
+point_location = input(
+    "Put in the exact location of PointSet you want to compare (ex:samples/PointSet ) : ")
 
 # DATA GETTER
 
 for item in selection:
-    print(item.name)
+    print("The name of the Block Model you have selected: " + str(item.name))
     # Setting outer array back to 0, for new block
     j = 0
     nn = 0
@@ -110,43 +126,73 @@ for item in selection:
                 totallength_z_dimension = z_res * z_count
 
                 index_map[i] = bm.block_to_grid_index
-                index_map[i] = index_map[i].tolist()
+                # index_map[i] = index_map[i].tolist()
                 number_of_parent_blocks = len(np.unique(index_map[i], axis=0))
                 total_volume_of_block = number_of_parent_blocks * x_res * y_res * z_res
 
+                # ****************************************************************
+                # * This the better fast method.
+                temp_dict_for_storing = {}
+                for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
+                                              ncols=100,
+                                              ascii=True,
+                                              position=0,
+                                              leave=True,):
+                    # We want to use the grid_index as the dictionary key. It needs to
+                    # be converted to a tuple which can be hashed.
+                    # Also, the grid_index is returned from the SDK as a float array
+                    # which seems odd. So convert to an integer array as well.
+                    grid_index_tuple = tuple(grid_index.astype(int))
+                    if grid_index_tuple in temp_dict_for_storing:
+                        temp_dict_for_storing[grid_index_tuple].append(block)
+                    else:
+                        temp_dict_for_storing[grid_index_tuple] = [block]
+                print("Number of parent blocks for this block model: " +
+                      str(len(temp_dict_for_storing)))
+                reverse_grid_index = (temp_dict_for_storing)
+
+                # **********************************************************************************************
                 # Converting from world coordinates
-                block_centroids = bm.convert_to_block_coordinates(block_centroids)
+                block_centroids = bm.convert_to_block_coordinates(
+                    block_centroids)
                 block_centroids = block_centroids + 0.5 * np.array(
                     [x_res, y_res, z_res]
                 )
-                
+
                 # Getting sample point data for point to block comparison
-                point_location = "samples/res Intervals Table mid points"
+
                 with project.read(point_location) as points:
                     # SDK method
                     real_points = points.points
                     point_visibility = points.point_visibility
                     real_points = bm.convert_to_block_coordinates(real_points)
-                    real_points = real_points + 0.5 * np.array([x_res, y_res, z_res])
+                    real_points = real_points + 0.5 * \
+                        np.array([x_res, y_res, z_res])
                     point_collection = [0] * len(real_points)
-                    point_domains = points.point_attributes[
-                        '{"c":"Domain","n":[],"s":"Point attribute (text)","t":"Tstring","u":"dimensionless","v":3}'
-                    ]
+                    point_domains_names = points.point_attributes.names
+                    for dictionary in point_domains_names:
+                        if (
+                            json.loads(dictionary)["c"] == "Domain"
+                            or json.loads(dictionary)["c"] == "domain"
+                        ):
+                            point_domain_dict = str(dictionary)
+                    point_domains = points.point_attributes[point_domain_dict]
 
                 # *************************************************************************************************
                 # Brute-force method
-                print("Calculating block extents")
+                # print("Calculating block extents")
 
                 for nn, useless_var in enumerate(block_centroids):
                     # print(len(extents[0]))
                     # print(len(extents[1]))
                     extents[i].append((
                         [
-                            (block_centroids[nn] - block_sizes[nn] / 2).tolist(),
-                            (block_centroids[nn] + block_sizes[nn] / 2).tolist(),
+                            (block_centroids[nn] -
+                             block_sizes[nn] / 2).tolist(),
+                            (block_centroids[nn] +
+                             block_sizes[nn] / 2).tolist(),
                         ]
                     ))
-
 
                 # *************************************************************************************************
                 # # Checks all attributes of block and then chooses the one with discrete values
@@ -158,45 +204,21 @@ for item in selection:
                         var_collection[i] = selected_var
                 vis = bm.block_visibility
                 vis_collection[i] = vis
-                for domain in colour_names:
-                    values[j][i] = np.count_nonzero(selected_var == domain)
-                    j = j + 1
-                # Creating labels
-                names.append("Block" + str(i))
-                # For the confusion matrix
-                df["block" + str(i)] = pd.Series(selected_var)
                 i = i + 1
 
 
 #########################################################
 
-# Visibility filterer
-if vis_compiler:
-    visfinal = vis_collection[0]
-    for q in range(1, len(vis_collection), 1):
-        visfinal = visfinal & vis_collection[q]
 
-    # The statement below removes all values in selected_var which have a corresponding false value
-    # in the same index location in vis
-    for z in range(0, len(var_collection), 1):
-        var_collection[z] = np.array(var_collection[z])[visfinal]
-
-    for d in range(0, M, 1):
-        # For the confusion matrix
-        df["block" + str(d)] = pd.Series(var_collection[d])
-        for domain, k in zip(colour_names, range(0, len(colour_names), 1)):
-            values[k][d] = np.count_nonzero(var_collection[d] == domain)
-# For the confusion matrix
-
-df.dropna(inplace=True)
-
-# For future operations
-# extents.tolist()
+# In[15]:
 
 
 unique_rows = np.unique(index_map[M-1], axis=0)
 print("Number of parent blocks:")
 print(len(unique_rows))
+
+
+# In[17]:
 
 
 # POINT TO BLOCK/SUB-BLOCK COMPARISON
@@ -219,24 +241,17 @@ with project.read(selected_model) as bm:
         total=len(real_points),
         desc="Progress",
         ncols=500,
-        ascii="**",
+        ascii=True,
+        position=0,
+        leave=True,
     ):
         c1 = math.floor(samplepoints_value[0] / x_res)
         c2 = math.floor(samplepoints_value[1] / y_res)
         c3 = math.floor(samplepoints_value[2] / z_res)
 
         if (0 <= c1 < x_count) and (0 <= c2 < y_count) and (0 <= c3 < z_count):
-            # index = index_map[0].index([c1, c2, c3])
-            # print(index)
-            subblock_check = bm.grid_index([c1, c2, c3])
-            # print(subblock_check)
-            subblock_indices = []
-            subblock_indices = np.where(subblock_check)[0]
-            # print(subblock_indices)
-            lengths_of_subblock_indices.append(
-                (len(subblock_indices), samplepoints_crawler)
-            )
-            if len(subblock_indices) > 0:
+            subblock_indices = reverse_grid_index.get((c1, c2, c3))
+            if (subblock_indices) is not None:
                 subblock_exists += 1
                 for ex in subblock_indices:
                     check += 1
@@ -289,7 +304,7 @@ point_domains_wo_outliers = np.delete(
     point_domains_wo_outliers, point_to_be_deleted_before_check
 )
 
-# This loop below is basically for findind how many blocks match or not, we are storing the indexes for
+# This loop below is basically for finding how many blocks match or not, we are storing the indexes for
 # getting their positions in the list where outsiders are already cut out
 for points_index, (x, y) in enumerate(
     zip(point_domains_wo_outliers, domains_of_blocks)
@@ -302,19 +317,21 @@ for points_index, (x, y) in enumerate(
 # For getting positions of points which dont match with the blocks they are positioned in
 point_pos_which_dont_match = copy.deepcopy(list(point_pos1.values()))
 # Deleting all values which are matching, hencing leaving us with the positions where there is no matching
-point_pos_which_dont_match = np.delete(point_pos_which_dont_match, points_that_match)
+point_pos_which_dont_match = np.delete(
+    point_pos_which_dont_match, points_that_match)
 
 
 print("*******************")
 print("*******************")
-print("Number of points which do not match: " + str(len(points_that_dont_match)))
+print("Number of points which do not match: " +
+      str(len(points_that_dont_match)))
 print("Number of points which match:: " + str(len(points_that_match)))
 print("**********************************************************")
 
 # print(len(point_domains_wo_outliers))
 # print(len(domains_of_blocks))
 # print("Blocks found: " + str(subblock_exists))
-print("outside_count: " + str(outside_count))
+print("Number of points which are outside the model: " + str(outside_count))
 print("*******************")
 
 # print(point_domains_wo_outliers[:20])
@@ -327,37 +344,8 @@ print(pointnotfound_in_indices_givenbygridindex)
 print(len(pointnotfound_in_indices_givenbygridindex))
 
 
-# Only show BLOCKS which dont match their domain
-block_array_of_visibility_created = []
-with project.edit(selected_model) as bm:
-    block_array_of_visibility = bm.block_visibility
 
-    block_array_of_visibility_created = [False] * len(block_array_of_visibility)
-
-    unique_blocks_which_contain_points_that_dont_match = set(point_pos_which_dont_match)
-
-    for values in unique_blocks_which_contain_points_that_dont_match:
-        block_array_of_visibility_created[values] = True
-    bm.block_visibility = block_array_of_visibility_created
-
-
-# Only show POINTS which dont match their domain
-point_array_of_visibility_created = []
-with project.edit(point_location) as points:
-    point_array_of_visibility = points.point_visibility
-
-    point_array_of_visibility_created = [False] * len(point_array_of_visibility)
-
-    for values1 in points_that_dont_match:
-        point_array_of_visibility_created[values1] = True
-    points.point_visibility = point_array_of_visibility_created
-
-
-# Gets previous visibilty back
-with project.edit(point_location) as points:
-    with project.edit(selected_model) as bm:
-        bm.block_visibility = vis
-        points.point_visibility = point_visibility
+# In[49]:
 
 
 # STATISTICAL REPORT
@@ -421,9 +409,112 @@ for x, y in zip(block_domain_names, block_domain_frequencies):
     )
 
 
+
+
+# In[12]:
+blockfilter = "No"
+blockfilter = input(
+    "Do you want to only see the blocks and points where the PointSet is not matching with the Block Model (Yes/No): ")
+
+
+if (blockfilter == "Yes") or (blockfilter == "Y") or (blockfilter == "y"):
+    print(blockfilter)
+    blockfilter = "Yes"
+    print("A new container called Filtered_block_and_points conatins the edited Model and Poinset")
+    time.sleep(3)
+
+if (blockfilter == "Yes"):
+
+    project.new_visual_container( "/","Filtered_block_and_points")
+    filtered_block=project.copy_object(
+        selected_model, "Filtered_block_and_points/Filtered_Block", overwrite=True)
+    filtered_pointset=project.copy_object(
+        point_location, "Filtered_block_and_points/Filtered_PointSet", overwrite=True)
+    # Only show BLOCKS which dont match their domain
+    block_array_of_visibility_created = []
+    with project.edit(filtered_block) as bm:
+        block_array_of_visibility = bm.block_visibility
+
+        block_array_of_visibility_created = [
+            False] * len(block_array_of_visibility)
+
+        unique_blocks_which_contain_points_that_dont_match = set(
+            point_pos_which_dont_match)
+
+        for values in unique_blocks_which_contain_points_that_dont_match:
+            block_array_of_visibility_created[values] = True
+        bm.block_visibility = block_array_of_visibility_created
+
+    # In[13]:
+
+    # Only show POINTS which dont match their domain
+    point_array_of_visibility_created = []
+    with project.edit(filtered_pointset) as points:
+        point_array_of_visibility = points.point_visibility
+
+        point_array_of_visibility_created = [
+            False] * len(point_array_of_visibility)
+
+        for values1 in points_that_dont_match:
+            point_array_of_visibility_created[values1] = True
+        points.point_visibility = point_array_of_visibility_created
+
+
+# In[14]:
+
+
+# # Gets previous visibilty back
+# with project.edit(point_location) as points:
+#     with project.edit(selected_model) as bm:
+#         bm.block_visibility = vis
+#         points.point_visibility = point_visibility
+
+
+
+
+# In[43]:
+
+while True:
+    number_to_restrict = (input(
+        "Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "))
+    try:
+        number_to_restrict = int(number_to_restrict)
+        if number_to_restrict < 0:  # if not a positive int print message and ask for input again
+            print("Sorry, input must be a positive integer, try again")
+            continue
+        break
+    except ValueError:
+        print("That's not an integer, try again!")
+
+# Feature to display first N elemnts only on confusion matrix
+
+sub0_domains_not_needed, sub0_domain_counts = np.unique(
+    point_domains_wo_outliers, return_counts=True)
+sub0_values = np.sort(np.asarray(
+    (sub0_domains_not_needed, sub0_domain_counts)).T)
+count_sort_ind = np.argsort(-sub0_domain_counts)
+sub0_domains_not_needed = list(
+    sub0_domains_not_needed[count_sort_ind[number_to_restrict:]])
+
+sub1_domains_not_needed, sub1_domain_counts = np.unique(
+    domains_of_blocks, return_counts=True)
+sub1_values = np.sort(np.asarray(
+    (sub1_domains_not_needed, sub1_domain_counts)).T)
+count_sort_ind = np.argsort(-sub1_domain_counts)
+sub1_domains_not_needed = list(
+    sub1_domains_not_needed[count_sort_ind[number_to_restrict:]])
+
+df2["point_domains_edited"] = pd.Series(point_domains_wo_outliers)
+df2["point_domains_edited"] = df2["point_domains_edited"].replace(
+    sub0_domains_not_needed, "others")
+df2["block_domains_edited"] = pd.Series(domains_of_blocks)
+df2["block_domains_edited"] = df2["block_domains_edited"].replace(
+    sub1_domains_not_needed, "others")
+
+
 # CONFUSION MATRIX FOR POINT TO BLOCK COMPARISON
 point_confusion_matrix = pd.crosstab(
-    df2["Points Domain"], df2["Block Domains"], rownames=["Points"], colnames=["Blocks"]
+    df2["point_domains_edited"], df2["block_domains_edited"], rownames=["Points"], colnames=[block_model_name]
 )
 point_confusion_matrix = pd.DataFrame(point_confusion_matrix)
 
@@ -435,6 +526,8 @@ gn = sns.heatmap(
     fmt=".2%",
     cmap="rocket_r",
     cbar=False,
+    xticklabels=True,
+    yticklabels=True,
 )
 
 cm.show()
@@ -445,130 +538,32 @@ cm.show()
 #     )
 # )
 
+# In[43]:
 
-# ****************CONFUSION MATRIX*****************************************************************
 
-confusion_matrix1 = pd.crosstab(
-    df["block0"], df["block1"], rownames=["Block0"], colnames=["Block1"]
+# CONFUSION MATRIX FOR POINT TO BLOCK COMPARISON
+point_confusion_matrix = pd.crosstab(
+    df2["Points Domain"], df2["Block Domains"], rownames=["Points"], colnames=[block_model_name]
 )
-confusion_matrix1 = pd.DataFrame(confusion_matrix1)
-
-# confusion_matrix2 = confusion_matrix(df['block0'], df['block1'])
+point_confusion_matrix = pd.DataFrame(point_confusion_matrix)
 
 mt = cm.figure(0)
 gn = sns.heatmap(
-    (confusion_matrix1) / (np.sum(confusion_matrix1)),
+    (point_confusion_matrix) / (np.sum(point_confusion_matrix)),
     cbar_kws={},
     annot=True,
     fmt=".2%",
-    cmap="crest",
-    cbar=True,
+    cmap="rocket_r",
+    cbar=False,
+    xticklabels=True,
+    yticklabels=True,
 )
 
-# ***************************JUST DIFFERENT COLOURS, PLEASE IGNORE*****************************************************************
-# mt1=cm.figure(1)
-# gn=sns.heatmap((confusion_matrix1)/(np.sum(confusion_matrix1)),cbar_kws={},\
-#             annot=True, fmt='.2%', cmap="YlGnBu",cbar=True)
-# mt2=cm.figure(2)
-# gn=sns.heatmap((confusion_matrix1)/(np.sum(confusion_matrix1)),cbar_kws={},\
-#             annot=True, fmt='.2%', cmap="rocket_r",cbar=True)
-# mt3=cm.figure(3)
-# gn=sns.heatmap((confusion_matrix1)/(np.sum(confusion_matrix1)),cbar_kws={},\
-#             annot=True, fmt='.2%', cmap="cubehelix_r",cbar=True)
-# colorbar =gn.collections[0].colorbar
-# colorbar.set_ticks([0,20,40,60,80,100])
-# ^^^^^^^^^^^^^^^^^^^JUST DIFFERENT COLOURS, PLEASE IGNORE^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-# mt1=cm.figure(1)
-# sns.heatmap(confusion_matrix2/np.sum(confusion_matrix2), annot=True, fmt=.2%', cbar=True,\
-# cbar_kws={'format':PercentFormatter()}, cmap="Blues")
-
-cm.show()
+mt.set_size_inches(22, 22)
+mt.savefig("Entire_Matrix.png", dpi=100)
 # Uncomment the lines below to generate a report.
-print(
-    metrics.classification_report(
-        df["block0"], df["block1"], labels=colour_names, zero_division=1
-    )
-)
-
-
-# *****************BAR PLOTS*****************************************************************
-ind = np.arange(M)
-width = 0.15
-bar_names = {}
-
-cm.figure(figsize=(18, 10))
-
-for y in range(0, len(colour_names), 1):
-    cm.bar(ind, values[y], width, color=real_colours[y], edgecolor="black", log=True)
-    ind = ind + width
-
-cm.xlabel("Blocks")
-cm.ylabel("Number")
-cm.title("Block Model Comparison of Domains")
-
-cm.xticks(ind - 3 * width, names)
-# cm.ticklabel_format(axis="y",style="plain")
-cm.legend(colour_names)
-cm.show()
-
-# *************************************************************************************************
-
-# seaborn stuff
-# sns.barplot(names, values)
-
-
-# *****************BOX PLOTS*****************************************************************
-
-# This function sets up the properties of all plots
-def setter(bp, c):
-
-    for box in bp["boxes"]:
-        box.set(color="#000000", linewidth=2)
-        box.set(facecolor=c)
-
-    for whisker in bp["whiskers"]:
-        whisker.set(color="#000000", linewidth=2)
-
-    for cap in bp["caps"]:
-        cap.set(color="#000000", linewidth=2)
-
-    for median in bp["medians"]:
-        median.set(color="#000000", linewidth=2)
-
-    for flier in bp["fliers"]:
-        flier.set(marker="D", markerfacecolor="#000000", alpha=1)
-
-
-# This function gets all the stats for the boxplots
-def get_box_plot_data(bp):
-    rows_list = []
-    for i in range(len(colour_names)):
-        dict1 = {}
-        dict1["label"] = colour_names[i]
-        dict1["lower_whisker"] = bp["whiskers"][i * 2].get_ydata()[1]
-        dict1["lower_quartile"] = bp["boxes"][i].get_ydata()[1]
-        dict1["median"] = bp["medians"][i].get_ydata()[1]
-        dict1["upper_quartile"] = bp["boxes"][i].get_ydata()[2]
-        dict1["upper_whisker"] = bp["whiskers"][(i * 2) + 1].get_ydata()[1]
-        rows_list.append(dict1)
-
-    return pd.DataFrame(rows_list)
-
-
-boxplots = {}
-for y in range(0, len(colour_names), 1):
-    cm.figure()  # creates a figure
-    cm.ticklabel_format(axis="y", style="plain")
-    boxplots["bp{0}".format(y)] = cm.boxplot(
-        values[y], patch_artist=True, labels=[colour_names[y]]
-    )
-    value_at_index = list(boxplots.values())[y]
-    setter(value_at_index, colours[y])
-
-cm.show()
-# print(boxplots)
-# for i in boxplots:
-#     get_box_plot_data(boxplots[i])
-
-
-
+# print(
+#     metrics.classification_report(
+#         df["Points Domain"], df["Block Domains"], labels=colour_names, zero_division=1
+#     )
+# )
