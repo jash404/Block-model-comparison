@@ -73,7 +73,7 @@
  [],
  False,
  False,
- 1643859966,
+ 1644217488,
  [('run.exe',
    'C:\\Users\\jash.vira\\AppData\\Roaming\\Python\\Python37\\site-packages\\PyInstaller\\bootloader\\Windows-64bit\\run.exe',
    'EXECUTABLE')])

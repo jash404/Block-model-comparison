@@ -89,6 +89,9 @@ index_map = [0] * M
 number_of_parent_blocks = []
 reverse_grid_index = []
 block_model_names = []
+totallength_y_dimension = []
+totallength_x_dimension = []
+totallength_z_dimension = []
 x_res = []
 y_res = []
 z_res = []
@@ -118,14 +121,14 @@ if len(selection) < 2:
     time.sleep(3)
     sys.exit()
 
-print("Enter X, Y and Z cooridnates of the smallest subblock of " +
+print("Enter X, Y and Z coordinates of the smallest subblock of " +
       str(block_model_names[0]) + "(Format: X Y Z):")
 smallest_sub_size_block1 = input()
 smallest_sub_size_block1 = list(
     map(Fraction, smallest_sub_size_block1.split(' ')))
 smallest_sub_size_block1 = list(map(float, smallest_sub_size_block1))
 
-print("Enter X, Y and Z cooridnates of the smallest subblock of " +
+print("Enter X, Y and Z coordinates of the smallest subblock of " +
       str(block_model_names[1]) + " (Format: X Y Z):")
 smallest_sub_size_block2 = input()
 smallest_sub_size_block2 = list(
@@ -167,9 +170,9 @@ for item in selection:
             y_count .append(bm.row_count)
             z_count .append(bm.slice_count)
 
-            totallength_x_dimension = x_res[0] * x_count[0]
-            totallength_y_dimension = y_res[0] * y_count[0]
-            totallength_z_dimension = z_res[0] * z_count[0]
+            totallength_x_dimension .append(x_res[0] * x_count[0])
+            totallength_y_dimension .append(y_res[0] * y_count[0])
+            totallength_z_dimension .append(z_res[0] * z_count[0])
 
             index_map[i] = bm.block_to_grid_index
             # index_map[i] = index_map[i].tolist()
@@ -181,49 +184,53 @@ for item in selection:
 
             # Creating a reverse grid index
             # *************************************************************************************************
-            # Making keys for reverse_grid_index i.e all unique parent blocks
-            parent_block_indexes = np.unique(index_map[i], axis=0)
+            # ! This is the complex, slow method.
+            # # Making keys for reverse_grid_index i.e all unique parent blocks
+            # parent_block_indexes = np.unique(index_map[i], axis=0)
 
-            # Getting corresponding sub of those parent blocks
-            parent_block_sub_indexes = []
-            for parent_block_indexes_crawler in tqdm(
-                parent_block_indexes,
-                total=len(parent_block_indexes),
-                desc="Progress",
-                ncols=100,
-                ascii=True,
-                position=0,
-                leave=True,
+            # # Getting corresponding sub of those parent blocks
+            # parent_block_sub_indexes = []
+            # for parent_block_indexes_crawler in tqdm(
+            #     parent_block_indexes,
+            #     total=len(parent_block_indexes),
+            #     desc="Progress",
+            #     ncols=100,
+            #     ascii=True,
+            #     position=0,
+            #     leave=True,
 
-            ):
-                sub_bool_values = np.all(
-                    index_map[i] == (parent_block_indexes_crawler), axis=1
-                )
-                sub_indexes = np.where(sub_bool_values)[0]
-                parent_block_sub_indexes.append(sub_indexes)
+            # ):
+            #     sub_bool_values = np.all(
+            #         index_map[i] == (parent_block_indexes_crawler), axis=1
+            #     )
+            #     sub_indexes = np.where(sub_bool_values)[0]
+            #     parent_block_sub_indexes.append(sub_indexes)
 
-            # Converting the keys to tuples and making the dict of reverse_grid_index
-            parent_block_indexes = [tuple(x) for x in parent_block_indexes]
-            reverse_grid_index.append(
-                dict(zip(parent_block_indexes, parent_block_sub_indexes))
-            )
+            # # Converting the keys to tuples and making the dict of reverse_grid_index
+            # parent_block_indexes = [tuple(x) for x in parent_block_indexes]
+            # reverse_grid_index.append(
+            #     dict(zip(parent_block_indexes, parent_block_sub_indexes))
+            # )
             # *****************************************************************
-            # temp_dict_for_storing = {}
-            # for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
-            #                               ncols=100,
-            #                               ascii=True,
-            #                               position=0,
-            #                               leave=True,):
-            #     # We want to use the grid_index as the dictionary key. It needs to
-            #     # be converted to a tuple which can be hashed.
-            #     # Also, the grid_index is returned from the SDK as a float array
-            #     # which seems odd. So convert to an integer array as well.
-            #     grid_index_tuple = tuple(grid_index.astype(int))
-            #     if grid_index_tuple in temp_dict_for_storing:
-            #         temp_dict_for_storing[grid_index_tuple].append(block)
-            #     else:
-            #         temp_dict_for_storing[grid_index_tuple] = [block]
-            # reverse_grid_index.append(temp_dict_for_storing)
+            # * This the better fast method.
+            temp_dict_for_storing = {}
+            for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
+                                          ncols=100,
+                                          ascii=True,
+                                          position=0,
+                                          leave=True,):
+                # We want to use the grid_index as the dictionary key. It needs to
+                # be converted to a tuple which can be hashed.
+                # Also, the grid_index is returned from the SDK as a float array
+                # which seems odd. So convert to an integer array as well.
+                grid_index_tuple = tuple(grid_index.astype(int))
+                if grid_index_tuple in temp_dict_for_storing:
+                    temp_dict_for_storing[grid_index_tuple].append(block)
+                else:
+                    temp_dict_for_storing[grid_index_tuple] = [block]
+            print("Number of parent blocks for this block model: " +
+                  str(len(temp_dict_for_storing)))
+            reverse_grid_index.append(temp_dict_for_storing)
 
             # *************************************************************************************************
 
@@ -261,7 +268,15 @@ for item in selection:
                     var_collection[i] = selected_var
             i = i+1
 
-# Getting "number of blocks" and the cooridnates of all those blocks
+# To check if the extents are the same for both given block models, this
+# is a vital assumption for the code to work as the new blocks we create will be need the same extents to compare.
+# print(totallength_x_dimension[0],totallength_y_dimension[0],totallength_z_dimension[0])
+# print(totallength_x_dimension[1],totallength_y_dimension[1],totallength_z_dimension[1])
+if totallength_x_dimension[0] != totallength_x_dimension[1] or totallength_y_dimension[0] != totallength_y_dimension[1] or totallength_z_dimension[0] != totallength_z_dimension[1]:
+    print("Please select block models with the same extents, try again!")
+    time.sleep(3)
+    sys.exit()
+# Getting "number of blocks" and the coordinates of all those blocks
 # in the subblock model created for subblock-subblock comparison
 # ###################################################################################################################
 x_for_created_subblock = fractions.gcd(
@@ -274,32 +289,46 @@ number_of_blocks_in_created_subblock_model = (total_volume_of_block) / (
     x_for_created_subblock * y_for_created_subblock * z_for_created_subblock
 )
 
-new_subblock_count_x_direction = totallength_x_dimension / x_for_created_subblock
-new_subblock_count_y_direction = totallength_y_dimension / y_for_created_subblock
-new_subblock_count_z_direction = totallength_z_dimension / z_for_created_subblock
+# This checks if coordinates given by the user dont have a crazy small GCD value,
+# if the value is too small it will make an unbelieveably large number of subblocks
+# which we can not handle, I have set the limit to 10 billion.
+if number_of_blocks_in_created_subblock_model > 10000000000:
+    print("Please enter x y z coordinates which are similar to the other block, Try Again.")
+    time.sleep(3)
+    sys.exit()
+
+new_subblock_count_x_direction = totallength_x_dimension[0] / \
+    x_for_created_subblock
+new_subblock_count_y_direction = totallength_y_dimension[0] / \
+    y_for_created_subblock
+new_subblock_count_z_direction = totallength_z_dimension[0] / \
+    z_for_created_subblock
 
 new_x_centroid_coordinate = np.linspace(
-    x_for_created_subblock / 2,
-    (new_subblock_count_x_direction * x_for_created_subblock)
-    + x_for_created_subblock / 2,
+    (x_for_created_subblock / 2),
+    ((new_subblock_count_x_direction * x_for_created_subblock)
+     + x_for_created_subblock / 2),
     int(new_subblock_count_x_direction),
     endpoint=False,
+
 )
 
 new_y_centroid_coordinate = np.linspace(
-    y_for_created_subblock / 2,
-    (new_subblock_count_y_direction * y_for_created_subblock)
-    + y_for_created_subblock / 2,
+    (y_for_created_subblock / 2),
+    ((new_subblock_count_y_direction * y_for_created_subblock)
+     + y_for_created_subblock / 2),
     int(new_subblock_count_y_direction),
     endpoint=False,
+
 )
 
 new_z_centroid_coordinate = np.linspace(
-    z_for_created_subblock / 2,
-    (new_subblock_count_z_direction * z_for_created_subblock)
-    + z_for_created_subblock / 2,
+    (z_for_created_subblock / 2),
+    ((new_subblock_count_z_direction * z_for_created_subblock)
+     + z_for_created_subblock / 2),
     int(new_subblock_count_z_direction),
     endpoint=False,
+
 )
 
 
