@@ -1,0 +1,231 @@
+Metadata-Version: 2.1
+Name: mapteksdk
+Version: 1.3
+Summary: Python SDK for MDF-based Maptek products
+Home-page: https://www.maptek.com
+Author: Maptek
+Author-email: support@maptek.com.au
+License: Maptek End User Licence Agreement
+Project-URL: Documentation, https://help.maptek.com/mapteksdk/
+Project-URL: Support, https://www.maptek.com/support/index.html
+Platform: UNKNOWN
+Classifier: Development Status :: 4 - Beta
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: License :: Other/Proprietary License
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Natural Language :: English
+Classifier: Topic :: Scientific/Engineering
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Requires-Python: >=3.7, <3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy (<1.22.0,>=1.16.4)
+Requires-Dist: pandas (<1.4.0,>=1.1.0)
+Requires-Dist: psutil (<5.9.0,>=5.6.3)
+Requires-Dist: pythonnet (<2.6.0,>=2.4.0)
+Requires-Dist: pyproj (<3.3.0,>=2.5.0)
+
+mapteksdk
+=========
+
+The mapteksdk is a Python library for working with Maptek products that use a
+shared underlying infrastructure such as PointStudio, GeologyCore, BlastLogic and
+Evolution.
+
+It provides access to data in a running application and allows it to be read and
+modified. There are various data types supported.
+
+To learn more about the SDK visit the [help](https://help.maptek.com/mapteksdk/).
+
+Usage
+=====
+To use mapteksdk, the first step is to connect to a running supported
+application. This is done via the `Project` class. The following example connects
+to the most recently opened supported application and lists all of the top level
+objects:
+
+
+```python
+from mapteksdk.project import Project
+with Project() as project:
+    for path, _ in project.get_children("/"):
+        print(path)
+```
+
+## Creating new data in an application
+Once a Python script has connected to a running application, the instance of the
+`Project` class can create new objects in the application. The following example
+demonstrates creating a square-shaped `Polygon` centred at the origin.
+
+```python
+from mapteksdk.project import Project
+from mapteksdk.data import Polygon
+with Project() as project:
+    with project.new("cad/square", Polygon) as square:
+        # Four points, each in the form (X, Y, Z)
+        square.points = [(-1, -1, 0), (-1, 1, 0), (1, 1, 0), (1, -1, 0)]
+```
+
+The first argument to `Project.new()`, "cad/square", indicates that the object
+should be created in the "cad" container and given the name "square". The second
+argument indicates the type of object to create, in this case `Polygon`.
+See the documentation for the `mapteksdk.data` module for other available
+types. The new square is populated by setting the points which define the
+`Polygon`. When the object is viewed in the application the points will be
+connected in order. i.e. A line is drawn between the zeroth and first points,
+the first and second points, and so on until the final line is drawn between the
+last and zeroth points.
+
+## Reading data in an application
+The Project class can also be used to read data in the connected
+application. The following example uses the `Project.read()` function to read the
+object created in the previous example. This will raise an error if the previous
+example was not run first.
+
+```python
+from mapteksdk.project import Project
+with Project() as project:
+    with project.read("cad/square") as square:
+        print("Points (X, Y, Z):\n", square.points)
+        print("Edges (Start, End):\n", square.edges)
+```
+
+The expected output of the script is shown below:
+
+```
+Points (X, Y, Z):
+ [[-1. -1.  0.]
+ [-1.  1.  0.]
+ [ 1.  1.  0.]
+ [ 1. -1.  0.]]
+Edges (Start, End):
+ [[0 1]
+ [1 2]
+ [2 3]
+ [3 0]]
+```
+
+The points are the same as used to create the object in the previous example.
+This example also prints the edges which connect the points - the edge [0, 1]
+indicates that there is an edge drawn between the zeroth and first points.
+
+## Editing existing data in an application
+The `Project` class can also edit existing objects in the connected application.
+The following example uses the `Project.edit()` function to colour the object
+created and read in the previous two examples.
+
+```python
+from mapteksdk.project import Project
+with Project() as project:
+    with project.edit("cad/square") as square:
+        square.point_colours = [(255, 0, 0, 255), (0, 255, 0, 255),
+                                (255, 0, 0, 255), (0, 255, 0, 255)]
+```
+
+The top left and bottom right hand corners are coloured red and the top right
+and bottom left hand corners are coloured green. This also colours the edges
+which connect the corners of the square such that they will transition from
+red to green.
+
+Example script
+==============
+Here is a more realistic example script. When run this script prompts
+for the user to click on an object in the running application. The edges
+of the object clicked on are coloured by edge grade (i.e. how 'steep' the
+edges are). This edges will be coloured:
+
+* Green if the grade is less than 10%.
+* Orange if the grade is greater or equal to 10% and less than 15%.
+* Red if the grade is greater or equal to 15% and less than 20%.
+* White if the grade is greater than or equal to 20%.
+
+Given a set of edges (an `EdgeNetwork` in code) representing roads
+in three dimensional space, this script could be used to quickly identify road
+sections which are dangerously steep. Such road sections would be coloured red,
+making them easy to find at a glance.
+
+The edge grade is also stored in an edge attribute which can be used later to
+retrieve the values.
+
+```python
+import numpy as np
+from mapteksdk.project import Project
+from mapteksdk.pointstudio.operations import object_pick, write_report
+
+def calculate_percentage_grade(start:np.ndarray, end:np.ndarray):
+    """Calculate the percentage grade of the line between points start and end.
+
+    Parameters
+    ----------
+    start : numpy.ndarray
+      Numpy array of start points. This should have shape (X, 3) where
+      X is the edge count.
+    end : numpy.ndarray
+      Numpy array of end points. This should have shape (X, 3) where
+      X is the edge count.
+
+    Returns
+    -------
+    numpy.ndarray
+      Numpy array of grade values of shape (X,) where X is the
+      edge count.
+    """
+    # Calculate an array of rise values for each edge.
+    # Rise is the difference between z coordinates.
+    rise = end[:, 2] - start[:, 2]
+    # Take the absolute value so that it doesn't matter which
+    # is the higher point.
+    np.absolute(rise, out=rise)
+    # Calculate an array of run values for each edge.
+    # Run is distance between the start and end point ignoring the z component.
+    run_vector = start - end
+    run = np.square(run_vector[:, 1]) - np.square(run_vector[:, 0])
+    np.absolute(run, out=run)
+
+    # Percentage grade = (rise / run) * 100
+    # Perform the calculation in-place to avoid making extra copies of the array.
+    grade = rise
+    grade /= run
+    grade *= 100
+    return grade
+
+if __name__ == "__main__":
+    project = Project()
+    # Request for the user to click on an object in the application and returns
+    # it.
+    picked_object_id = object_pick(label="Pick object to colour edges by grade.")
+
+    # Grade thresholds used for colouring.
+    okay_grade = 10.
+    warning_grade = 15.
+    danger_grade = 20.
+
+    # Colours to use for grade thresholds.
+    okay_colour = [0, 200, 0, 255] # Green
+    warning_colour = [255, 165, 0, 255] # Orange
+    danger_colour = [255, 0, 0, 255] # Red
+    vertical_colour = [255, 255, 255, 255] # White
+
+    with project.edit(picked_object_id) as edges:
+        try:
+            # Edges are of the form [start point index, end point index].
+            # Replaces the index with the coordinate of the corresponding point
+            # giving each edge as:
+            # [[x_start, y_start, z_start], [x_end, y_end, z_end]]
+            edge_coordinates = edges.points[edges.edges]
+            start_points = edge_coordinates[:, 0]
+            end_points = edge_coordinates[:, 1]
+            grade = calculate_percentage_grade(start_points, end_points)
+            edges.edge_attributes["grade"] = grade
+            # Colour the object by grade.
+            edges.edge_colours[:] = vertical_colour
+            edges.edge_colours[grade < danger_grade] = danger_colour
+            edges.edge_colours[grade < warning_grade] = warning_colour
+            edges.edge_colours[grade < okay_grade] = okay_colour
+        except AttributeError:
+            message = f"{picked_object_id.path} does not have edges"
+            write_report("Failed to colour by edge grade", message)
+            print(message)
+```
+
+
