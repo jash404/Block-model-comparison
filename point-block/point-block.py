@@ -63,45 +63,47 @@ point_checker = True
 # ********************************************************************************************************************
 names = []
 df = pd.DataFrame()
-selection = project.get_selected()
+objects_selected_in_project = project.get_selected()
 last_opacity = 255
 
 global M
-M = len(selection)
-vis_collection = [0] * M
-var_collection = [0] * M
-index_map = [0] * M
-extents = [[] for _ in range(M)]
+length_of_selection = len(objects_selected_in_project)
+vis_collection = [0] * length_of_selection
+var_collection = [0] * length_of_selection
+index_map = [0] * length_of_selection
+extents = [[] for _ in range(length_of_selection)]
 # i tells you the index of the block_model
-i = 0
-j = 0
+block_model_index = 0
 
-for name_iterator in selection:
+for name_iterator in objects_selected_in_project:
     block_model_name = name_iterator.name
-    if name_iterator.is_a(DenseBlockModel) == False and name_iterator.is_a(SubblockedBlockModel) == False:
+    if (
+        name_iterator.is_a(DenseBlockModel) == False
+        and name_iterator.is_a(SubblockedBlockModel) == False
+    ):
         print("Please select a Block Model to compare, Try Again.")
         time.sleep(3)
         sys.exit()
 
 
-if len(selection) < 1:
+if len(objects_selected_in_project) < 1:
     print("Please select a Block Model to compare, Try Again.")
     time.sleep(3)
     sys.exit()
-elif len(selection) > 1:
+elif len(objects_selected_in_project) > 1:
     print("Please select only one Block Model to compare with the points, Try Again")
     time.sleep(3)
     sys.exit()
 
 point_location = input(
-    "Put in the exact location of PointSet you want to compare (ex:samples/PointSet ) : ")
+    "Put in the exact location of PointSet you want to compare (ex:samples/PointSet ) : "
+)
 
 # DATA GETTER
 
-for item in selection:
+for item in objects_selected_in_project:
     print("The name of the Block Model you have selected: " + str(item.name))
     # Setting outer array back to 0, for new block
-    j = 0
     nn = 0
     if item.is_a(DenseBlockModel) or item.is_a(SubblockedBlockModel):
         selected_model = item
@@ -125,19 +127,25 @@ for item in selection:
                 totallength_y_dimension = y_res * y_count
                 totallength_z_dimension = z_res * z_count
 
-                index_map[i] = bm.block_to_grid_index
+                index_map[block_model_index] = bm.block_to_grid_index
                 # index_map[i] = index_map[i].tolist()
-                number_of_parent_blocks = len(np.unique(index_map[i], axis=0))
+                number_of_parent_blocks = len(
+                    np.unique(index_map[block_model_index], axis=0)
+                )
                 total_volume_of_block = number_of_parent_blocks * x_res * y_res * z_res
 
                 # ****************************************************************
                 # * This the better fast method.
                 temp_dict_for_storing = {}
-                for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
-                                              ncols=100,
-                                              ascii=True,
-                                              position=0,
-                                              leave=True,):
+                for block, grid_index in tqdm(
+                    enumerate(index_map[block_model_index]),
+                    total=len(index_map[block_model_index]),
+                    desc="Progress",
+                    ncols=100,
+                    ascii=True,
+                    position=0,
+                    leave=True,
+                ):
                     # We want to use the grid_index as the dictionary key. It needs to
                     # be converted to a tuple which can be hashed.
                     # Also, the grid_index is returned from the SDK as a float array
@@ -147,14 +155,15 @@ for item in selection:
                         temp_dict_for_storing[grid_index_tuple].append(block)
                     else:
                         temp_dict_for_storing[grid_index_tuple] = [block]
-                print("Number of parent blocks for this block model: " +
-                      str(len(temp_dict_for_storing)))
-                reverse_grid_index = (temp_dict_for_storing)
+                print(
+                    "Number of parent blocks for this block model: "
+                    + str(len(temp_dict_for_storing))
+                )
+                reverse_grid_index = temp_dict_for_storing
 
                 # **********************************************************************************************
                 # Converting from world coordinates
-                block_centroids = bm.convert_to_block_coordinates(
-                    block_centroids)
+                block_centroids = bm.convert_to_block_coordinates(block_centroids)
                 block_centroids = block_centroids + 0.5 * np.array(
                     [x_res, y_res, z_res]
                 )
@@ -166,8 +175,7 @@ for item in selection:
                     real_points = points.points
                     point_visibility = points.point_visibility
                     real_points = bm.convert_to_block_coordinates(real_points)
-                    real_points = real_points + 0.5 * \
-                        np.array([x_res, y_res, z_res])
+                    real_points = real_points + 0.5 * np.array([x_res, y_res, z_res])
                     point_collection = [0] * len(real_points)
                     point_domains_names = points.point_attributes.names
                     for dictionary in point_domains_names:
@@ -181,19 +189,35 @@ for item in selection:
 
                 # *************************************************************************************************
                 # Brute-force method
+                # ! Also np.round is needed for keeping the decimal place for extents in check,
+                # ! if this is not done then it is more by a small value which leads to
+                # ! leaving out certain points while check.
+                # ! However np.round is quite slow.
                 print("Calculating block extents....")
 
-                for nn, useless_var in tqdm(enumerate(block_centroids), total=len(block_centroids), desc="Progress", ncols=100, ascii=True, position=0, leave=True):
+                for nn, useless_var in tqdm(
+                    enumerate(block_centroids),
+                    total=len(block_centroids),
+                    desc="Progress",
+                    ncols=100,
+                    ascii=True,
+                    position=0,
+                    leave=True,
+                ):
                     # print(len(extents[0]))
                     # print(len(extents[1]))
-                    extents[i].append((
-                        [
-                            np.round((block_centroids[nn] -
-                             block_sizes[nn] / 2),6).tolist(),
-                            np.round((block_centroids[nn] +
-                             block_sizes[nn] / 2),6).tolist(),
-                        ]
-                    ))
+                    extents[block_model_index].append(
+                        (
+                            [
+                                np.round(
+                                    (block_centroids[nn] - block_sizes[nn] / 2), 6
+                                ).tolist(),
+                                np.round(
+                                    (block_centroids[nn] + block_sizes[nn] / 2), 6
+                                ).tolist(),
+                            ]
+                        )
+                    )
 
                 # *************************************************************************************************
                 # # Checks all attributes of block and then chooses the one with discrete values
@@ -202,10 +226,10 @@ for item in selection:
                     checker = bm.block_attributes[key]
                     if isinstance(checker[0], (str, int)):
                         selected_var = checker
-                        var_collection[i] = selected_var
+                        var_collection[block_model_index] = selected_var
                 vis = bm.block_visibility
-                vis_collection[i] = vis
-                i = i + 1
+                vis_collection[block_model_index] = vis
+                block_model_index = block_model_index + 1
 
 
 #########################################################
@@ -223,7 +247,7 @@ for item in selection:
 
 
 # POINT TO BLOCK/SUB-BLOCK COMPARISON
-point_pos1 = {}
+dict_of_point_and_its_corresponding_block_location = {}
 points_that_dont_match = []
 points_that_match = []
 domains_of_blocks = []
@@ -246,31 +270,37 @@ with project.read(selected_model) as bm:
         position=0,
         leave=True,
     ):
-        c1 = math.floor(samplepoints_value[0] / x_res)
-        c2 = math.floor(samplepoints_value[1] / y_res)
-        c3 = math.floor(samplepoints_value[2] / z_res)
+        index_x_of_created_centroid = math.floor(samplepoints_value[0] / x_res)
+        index_y_of_created_centroid = math.floor(samplepoints_value[1] / y_res)
+        index_z_of_created_centroid = math.floor(samplepoints_value[2] / z_res)
 
         # if (0 <= c1 < x_count) and (0 <= c2 < y_count) and (0 <= c3 < z_count):
-        subblock_indices = reverse_grid_index.get((c1, c2, c3))
+        subblock_indices = reverse_grid_index.get(
+            (
+                index_x_of_created_centroid,
+                index_y_of_created_centroid,
+                index_z_of_created_centroid,
+            )
+        )
         if (subblock_indices) is not None:
             subblock_exists += 1
-            for ex in subblock_indices:
+            for subblock_indices_crawler in subblock_indices:
                 check += 1
                 if (
                     (
-                        extents[0][ex][0][0]
+                        extents[0][subblock_indices_crawler][0][0]
                         <= samplepoints_value[0]
-                        <= extents[0][ex][1][0]
+                        <= extents[0][subblock_indices_crawler][1][0]
                     )
                     and (
-                        extents[0][ex][0][1]
+                        extents[0][subblock_indices_crawler][0][1]
                         <= samplepoints_value[1]
-                        <= extents[0][ex][1][1]
+                        <= extents[0][subblock_indices_crawler][1][1]
                     )
                     and (
-                        extents[0][ex][0][2]
+                        extents[0][subblock_indices_crawler][0][2]
                         <= samplepoints_value[2]
-                        <= extents[0][ex][1][2]
+                        <= extents[0][subblock_indices_crawler][1][2]
                     )
                 ):
 
@@ -278,9 +308,11 @@ with project.read(selected_model) as bm:
                         (check, samplepoints_crawler)
                     )
                     check = 0
-                    point_in_sublock.append(ex)
-                    point_pos1[samplepoints_crawler] = ex
-                    domains_of_blocks.append(selected_var[ex])
+                    point_in_sublock.append(subblock_indices_crawler)
+                    dict_of_point_and_its_corresponding_block_location[
+                        samplepoints_crawler
+                    ] = subblock_indices_crawler
+                    domains_of_blocks.append(selected_var[subblock_indices_crawler])
                     break
                 elif check == len(subblock_indices):
                     check = 0
@@ -318,16 +350,16 @@ for points_index, (x, y) in enumerate(
         points_that_dont_match.append(points_index)
 
 # For getting positions of points which dont match with the blocks they are positioned in
-point_pos_which_dont_match = copy.deepcopy(list(point_pos1.values()))
+point_pos_which_dont_match = copy.deepcopy(
+    list(dict_of_point_and_its_corresponding_block_location.values())
+)
 # Deleting all values which are matching, hencing leaving us with the positions where there is no matching
-point_pos_which_dont_match = np.delete(
-    point_pos_which_dont_match, points_that_match)
+point_pos_which_dont_match = np.delete(point_pos_which_dont_match, points_that_match)
 
 
 print("*******************")
 print("*******************")
-print("Number of points which do not match: " +
-      str(len(points_that_dont_match)))
+print("Number of points which do not match: " + str(len(points_that_dont_match)))
 print("Number of points which match:: " + str(len(points_that_match)))
 print("**********************************************************")
 
@@ -370,7 +402,10 @@ print(
 )
 
 print("The number of unique points:" + str(len(point_domains_wo_outliers)))
-print("The number of unique blocks:" + str(len(set(list(point_pos1.values())))))
+print(
+    "The number of unique blocks:"
+    + str(len(set(list(dict_of_point_and_its_corresponding_block_location.values()))))
+)
 
 print(len(point_domains_wo_outliers))
 print(len(domains_of_blocks))
@@ -400,7 +435,7 @@ for x, y in zip(point_domain_names, domain_frequencies):
     )
 
 print(1 * "\n")
-print("Domain distribution in "+str(block_model_name)+":")
+print("Domain distribution in " + str(block_model_name) + ":")
 print(df2["Block Domains"].value_counts())
 for x, y in zip(block_domain_names, block_domain_frequencies):
     print(
@@ -415,31 +450,36 @@ for x, y in zip(block_domain_names, block_domain_frequencies):
 blockfilter = "No"
 print(1 * "\n")
 blockfilter = input(
-    "Do you want to only see the blocks and points where the PointSet is not matching with the Block Model (Yes/No): ")
+    "Do you want to only see the blocks and points where the PointSet is not matching with the Block Model (Yes/No): "
+)
 
 
 if (blockfilter == "Yes") or (blockfilter == "Y") or (blockfilter == "y"):
     blockfilter = "Yes"
-    print("A new container called Filtered_block_and_points contains the edited Model and Pointset")
+    print(
+        "A new container called Filtered_block_and_points contains the edited Model and Pointset"
+    )
     time.sleep(3)
 
-if (blockfilter == "Yes"):
+if blockfilter == "Yes":
 
     project.new_visual_container("/", "Filtered_block_and_points")
     filtered_block = project.copy_object(
-        selected_model, "Filtered_block_and_points/Filtered_Block", overwrite=True)
+        selected_model, "Filtered_block_and_points/Filtered_Block", overwrite=True
+    )
     filtered_pointset = project.copy_object(
-        point_location, "Filtered_block_and_points/Filtered_PointSet", overwrite=True)
+        point_location, "Filtered_block_and_points/Filtered_PointSet", overwrite=True
+    )
     # Only show BLOCKS which dont match their domain
     block_array_of_visibility_created = []
     with project.edit(filtered_block) as bm:
         block_array_of_visibility = bm.block_visibility
 
-        block_array_of_visibility_created = [
-            False] * len(block_array_of_visibility)
+        block_array_of_visibility_created = [False] * len(block_array_of_visibility)
 
         unique_blocks_which_contain_points_that_dont_match = set(
-            point_pos_which_dont_match)
+            point_pos_which_dont_match
+        )
 
         for values in unique_blocks_which_contain_points_that_dont_match:
             block_array_of_visibility_created[values] = True
@@ -452,21 +492,19 @@ if (blockfilter == "Yes"):
     with project.edit(filtered_pointset) as points:
         point_array_of_visibility = points.point_visibility
         point_array_of_visibility_created = [False] * len(point_array_of_visibility)
-        # print(len(point_array_of_visibility))
         point_array_of_visibility_created_wo_outliers = copy.deepcopy(
             point_array_of_visibility_created
         )
+        # Eliminating outliers from visibilty array
         point_array_of_visibility_created_wo_outliers = np.delete(
             point_array_of_visibility_created_wo_outliers,
             point_to_be_deleted_before_check,
         )
-        # print(point_to_be_deleted_before_check)
+        # Eliminating outliers from physical PointSet itself
         points.remove_points(point_to_be_deleted_before_check, update_immediately=True)
         points.save()
-        # print(len(points.point_visibility))
         for values1 in points_that_dont_match:
             point_array_of_visibility_created_wo_outliers[values1] = True
-        # print(len(point_array_of_visibility_created_wo_outliers))
         points.point_visibility = point_array_of_visibility_created_wo_outliers
 
 
@@ -484,11 +522,14 @@ if (blockfilter == "Yes"):
 
 while True:
     print(1 * "\n")
-    number_to_restrict = (input(
-        "Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "))
+    number_to_restrict = input(
+        "Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "
+    )
     try:
         number_to_restrict = int(number_to_restrict)
-        if number_to_restrict < 0:  # if not a positive int print message and ask for input again
+        if (
+            number_to_restrict < 0
+        ):  # if not a positive int print message and ask for input again
             print("Sorry, input must be a positive integer, try again")
             continue
         break
@@ -498,32 +539,39 @@ while True:
 # Feature to display first N elemnts only on confusion matrix
 
 sub0_domains_not_needed, sub0_domain_counts = np.unique(
-    point_domains_wo_outliers, return_counts=True)
-sub0_values = np.sort(np.asarray(
-    (sub0_domains_not_needed, sub0_domain_counts)).T)
+    point_domains_wo_outliers, return_counts=True
+)
+sub0_values = np.sort(np.asarray((sub0_domains_not_needed, sub0_domain_counts)).T)
 count_sort_ind = np.argsort(-sub0_domain_counts)
 sub0_domains_not_needed = list(
-    sub0_domains_not_needed[count_sort_ind[number_to_restrict:]])
+    sub0_domains_not_needed[count_sort_ind[number_to_restrict:]]
+)
 
 sub1_domains_not_needed, sub1_domain_counts = np.unique(
-    domains_of_blocks, return_counts=True)
-sub1_values = np.sort(np.asarray(
-    (sub1_domains_not_needed, sub1_domain_counts)).T)
+    domains_of_blocks, return_counts=True
+)
+sub1_values = np.sort(np.asarray((sub1_domains_not_needed, sub1_domain_counts)).T)
 count_sort_ind = np.argsort(-sub1_domain_counts)
 sub1_domains_not_needed = list(
-    sub1_domains_not_needed[count_sort_ind[number_to_restrict:]])
+    sub1_domains_not_needed[count_sort_ind[number_to_restrict:]]
+)
 
 df2["point_domains_edited"] = pd.Series(point_domains_wo_outliers)
 df2["point_domains_edited"] = df2["point_domains_edited"].replace(
-    sub0_domains_not_needed, "others")
+    sub0_domains_not_needed, "others"
+)
 df2["block_domains_edited"] = pd.Series(domains_of_blocks)
 df2["block_domains_edited"] = df2["block_domains_edited"].replace(
-    sub1_domains_not_needed, "others")
+    sub1_domains_not_needed, "others"
+)
 
 
 # CONFUSION MATRIX FOR POINT TO BLOCK COMPARISON
 point_confusion_matrix = pd.crosstab(
-    df2["point_domains_edited"], df2["block_domains_edited"], rownames=["Points"], colnames=[block_model_name]
+    df2["point_domains_edited"],
+    df2["block_domains_edited"],
+    rownames=["Points"],
+    colnames=[block_model_name],
 )
 point_confusion_matrix = pd.DataFrame(point_confusion_matrix)
 
@@ -552,7 +600,10 @@ cm.show()
 
 # CONFUSION MATRIX FOR POINT TO BLOCK COMPARISON
 point_confusion_matrix = pd.crosstab(
-    df2["Points Domain"], df2["Block Domains"], rownames=["Points"], colnames=[block_model_name]
+    df2["Points Domain"],
+    df2["Block Domains"],
+    rownames=["Points"],
+    colnames=[block_model_name],
 )
 point_confusion_matrix = pd.DataFrame(point_confusion_matrix)
 
@@ -576,3 +627,5 @@ mt.savefig("Entire_Matrix.png", dpi=100)
 #         df["Points Domain"], df["Block Domains"], labels=colour_names, zero_division=1
 #     )
 # )
+
+input("Press enter to exit. ")

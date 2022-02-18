@@ -28,6 +28,7 @@ import matplotlib.colors as cc
 import matplotlib.pyplot as cm
 import numpy as np
 import pandas as pd
+
 # import rtree
 import seaborn as sns
 from mapteksdk.data import (
@@ -110,7 +111,10 @@ j = 0
 # * checks before program is started.
 for name_iterator in selection:
     block_model_names.append(name_iterator.name)
-    if name_iterator.is_a(DenseBlockModel) == False and name_iterator.is_a(SubblockedBlockModel) == False:
+    if (
+        name_iterator.is_a(DenseBlockModel) == False
+        and name_iterator.is_a(SubblockedBlockModel) == False
+    ):
         print("Please select two Block Models to compare, Try Again.")
         time.sleep(3)
         sys.exit()
@@ -121,30 +125,34 @@ if len(selection) < 2:
     time.sleep(3)
     sys.exit()
 
-print("Enter X, Y and Z coordinates of the smallest subblock of " +
-      str(block_model_names[0]) + "(Format: X Y Z):")
+print(
+    "Enter X, Y and Z coordinates of the smallest subblock of "
+    + str(block_model_names[0])
+    + "(Format: X Y Z):"
+)
 smallest_sub_size_block1 = input()
-smallest_sub_size_block1 = list(
-    map(Fraction, smallest_sub_size_block1.split(' ')))
+smallest_sub_size_block1 = list(map(Fraction, smallest_sub_size_block1.split(" ")))
 smallest_sub_size_block1 = list(map(float, smallest_sub_size_block1))
 
-print("Enter X, Y and Z coordinates of the smallest subblock of " +
-      str(block_model_names[1]) + " (Format: X Y Z):")
+print(
+    "Enter X, Y and Z coordinates of the smallest subblock of "
+    + str(block_model_names[1])
+    + " (Format: X Y Z):"
+)
 smallest_sub_size_block2 = input()
-smallest_sub_size_block2 = list(
-    map(Fraction, smallest_sub_size_block2.split(' ')))
+smallest_sub_size_block2 = list(map(Fraction, smallest_sub_size_block2.split(" ")))
 smallest_sub_size_block2 = list(map(float, smallest_sub_size_block2))
 
 solidfilter = "No"
 solidfilter = input(
-    "Do you want to restrict your search space inside a solid (Yes/No): ")
+    "Do you want to restrict your search space inside a solid (Yes/No): "
+)
 
 
 if (solidfilter == "Yes") or (solidfilter == "Y") or (solidfilter == "y"):
     print(solidfilter)
     solidfilter = "Yes"
-    solid_location = input(
-        "Put in the exact location of solid (ex:surfaces/Solid ) : ")
+    solid_location = input("Put in the exact location of solid (ex:surfaces/Solid ) : ")
 # DATA GETTER
 
 for item in selection:
@@ -162,22 +170,21 @@ for item in selection:
             block_sizes = bm.block_sizes
             block_centroids = bm.block_centroids
             b = bm.block_resolution
-            x_res .append(float(b[0]))
-            y_res .append(float(b[1]))
-            z_res .append(float(b[2]))
+            x_res.append(float(b[0]))
+            y_res.append(float(b[1]))
+            z_res.append(float(b[2]))
 
-            x_count .append(bm.column_count)
-            y_count .append(bm.row_count)
-            z_count .append(bm.slice_count)
+            x_count.append(bm.column_count)
+            y_count.append(bm.row_count)
+            z_count.append(bm.slice_count)
 
-            totallength_x_dimension .append(x_res[0] * x_count[0])
-            totallength_y_dimension .append(y_res[0] * y_count[0])
-            totallength_z_dimension .append(z_res[0] * z_count[0])
+            totallength_x_dimension.append(x_res[0] * x_count[0])
+            totallength_y_dimension.append(y_res[0] * y_count[0])
+            totallength_z_dimension.append(z_res[0] * z_count[0])
 
             index_map[i] = bm.block_to_grid_index
             # index_map[i] = index_map[i].tolist()
-            number_of_parent_blocks.append(
-                len(np.unique(index_map[i], axis=0)))
+            number_of_parent_blocks.append(len(np.unique(index_map[i], axis=0)))
             total_volume_of_block = (
                 number_of_parent_blocks[i] * x_res[i] * y_res[i] * z_res[i]
             )
@@ -214,11 +221,15 @@ for item in selection:
             # *****************************************************************
             # * This the better fast method.
             temp_dict_for_storing = {}
-            for block, grid_index in tqdm(enumerate(index_map[i]), total=len(index_map[i]), desc="Progress",
-                                          ncols=100,
-                                          ascii=True,
-                                          position=0,
-                                          leave=True,):
+            for block, grid_index in tqdm(
+                enumerate(index_map[i]),
+                total=len(index_map[i]),
+                desc="Progress",
+                ncols=100,
+                ascii=True,
+                position=0,
+                leave=True,
+            ):
                 # We want to use the grid_index as the dictionary key. It needs to
                 # be converted to a tuple which can be hashed.
                 # Also, the grid_index is returned from the SDK as a float array
@@ -228,15 +239,16 @@ for item in selection:
                     temp_dict_for_storing[grid_index_tuple].append(block)
                 else:
                     temp_dict_for_storing[grid_index_tuple] = [block]
-            print("Number of parent blocks for this block model: " +
-                  str(len(temp_dict_for_storing)))
+            print(
+                "Number of parent blocks for this block model: "
+                + str(len(temp_dict_for_storing))
+            )
             reverse_grid_index.append(temp_dict_for_storing)
 
             # *************************************************************************************************
 
             # Converting from world coordinates
-            block_centroids = bm.convert_to_block_coordinates(
-                block_centroids)
+            block_centroids = bm.convert_to_block_coordinates(block_centroids)
             block_centroids = block_centroids + 0.5 * np.array(
                 [x_res[i], y_res[i], z_res[i]]
             )
@@ -244,16 +256,22 @@ for item in selection:
             # Brute-force method
             print("Calculating block extents...")
 
-            for nn, useless_var in tqdm(enumerate(block_centroids), total=len(block_centroids), desc="Progress", ncols=100, ascii=True, position=0, leave=True):
+            for nn, useless_var in tqdm(
+                enumerate(block_centroids),
+                total=len(block_centroids),
+                desc="Progress",
+                ncols=100,
+                ascii=True,
+                position=0,
+                leave=True,
+            ):
                 # print(len(extents[0]))
                 # print(len(extents[1]))
                 extents[i].append(
                     (
                         [
-                            (block_centroids[nn] -
-                                block_sizes[nn] / 2).tolist(),
-                            (block_centroids[nn] +
-                                block_sizes[nn] / 2).tolist(),
+                            (block_centroids[nn] - block_sizes[nn] / 2).tolist(),
+                            (block_centroids[nn] + block_sizes[nn] / 2).tolist(),
                         ]
                     )
                 )
@@ -266,13 +284,17 @@ for item in selection:
                 if isinstance(checker[0], (str, int)):
                     selected_var = checker
                     var_collection[i] = selected_var
-            i = i+1
+            i = i + 1
 
 # To check if the extents are the same for both given block models, this
 # is a vital assumption for the code to work as the new blocks we create will be need the same extents to compare.
 # print(totallength_x_dimension[0],totallength_y_dimension[0],totallength_z_dimension[0])
 # print(totallength_x_dimension[1],totallength_y_dimension[1],totallength_z_dimension[1])
-if totallength_x_dimension[0] != totallength_x_dimension[1] or totallength_y_dimension[0] != totallength_y_dimension[1] or totallength_z_dimension[0] != totallength_z_dimension[1]:
+if (
+    totallength_x_dimension[0] != totallength_x_dimension[1]
+    or totallength_y_dimension[0] != totallength_y_dimension[1]
+    or totallength_z_dimension[0] != totallength_z_dimension[1]
+):
     print("Please select block models with the same extents, try again!")
     time.sleep(3)
     sys.exit()
@@ -280,11 +302,14 @@ if totallength_x_dimension[0] != totallength_x_dimension[1] or totallength_y_dim
 # in the subblock model created for subblock-subblock comparison
 # ###################################################################################################################
 x_for_created_subblock = fractions.gcd(
-    smallest_sub_size_block1[0], smallest_sub_size_block2[0])
+    smallest_sub_size_block1[0], smallest_sub_size_block2[0]
+)
 y_for_created_subblock = fractions.gcd(
-    smallest_sub_size_block1[1], smallest_sub_size_block2[1])
+    smallest_sub_size_block1[1], smallest_sub_size_block2[1]
+)
 z_for_created_subblock = fractions.gcd(
-    smallest_sub_size_block1[2], smallest_sub_size_block2[2])
+    smallest_sub_size_block1[2], smallest_sub_size_block2[2]
+)
 number_of_blocks_in_created_subblock_model = (total_volume_of_block) / (
     x_for_created_subblock * y_for_created_subblock * z_for_created_subblock
 )
@@ -293,42 +318,44 @@ number_of_blocks_in_created_subblock_model = (total_volume_of_block) / (
 # if the value is too small it will make an unbelieveably large number of subblocks
 # which we can not handle, I have set the limit to 10 billion.
 if number_of_blocks_in_created_subblock_model > 10000000000:
-    print("Please enter x y z coordinates which are similar to the other block, Try Again.")
+    print(
+        "Please enter x y z coordinates which are similar to the other block, Try Again."
+    )
     time.sleep(3)
     sys.exit()
 
-new_subblock_count_x_direction = totallength_x_dimension[0] / \
-    x_for_created_subblock
-new_subblock_count_y_direction = totallength_y_dimension[0] / \
-    y_for_created_subblock
-new_subblock_count_z_direction = totallength_z_dimension[0] / \
-    z_for_created_subblock
+new_subblock_count_x_direction = totallength_x_dimension[0] / x_for_created_subblock
+new_subblock_count_y_direction = totallength_y_dimension[0] / y_for_created_subblock
+new_subblock_count_z_direction = totallength_z_dimension[0] / z_for_created_subblock
 
 new_x_centroid_coordinate = np.linspace(
     (x_for_created_subblock / 2),
-    ((new_subblock_count_x_direction * x_for_created_subblock)
-     + x_for_created_subblock / 2),
+    (
+        (new_subblock_count_x_direction * x_for_created_subblock)
+        + x_for_created_subblock / 2
+    ),
     int(new_subblock_count_x_direction),
     endpoint=False,
-
 )
 
 new_y_centroid_coordinate = np.linspace(
     (y_for_created_subblock / 2),
-    ((new_subblock_count_y_direction * y_for_created_subblock)
-     + y_for_created_subblock / 2),
+    (
+        (new_subblock_count_y_direction * y_for_created_subblock)
+        + y_for_created_subblock / 2
+    ),
     int(new_subblock_count_y_direction),
     endpoint=False,
-
 )
 
 new_z_centroid_coordinate = np.linspace(
     (z_for_created_subblock / 2),
-    ((new_subblock_count_z_direction * z_for_created_subblock)
-     + z_for_created_subblock / 2),
+    (
+        (new_subblock_count_z_direction * z_for_created_subblock)
+        + z_for_created_subblock / 2
+    ),
     int(new_subblock_count_z_direction),
     endpoint=False,
-
 )
 
 
@@ -352,8 +379,7 @@ new_block_centroids = np.column_stack(
 
 
 print(1 * "\n")
-print("Number of centroids that will be compared: " +
-      str(len(new_block_centroids)))
+print("Number of centroids that will be compared: " + str(len(new_block_centroids)))
 print(1 * "\n")
 # In[9]:
 block_model_index = 0
@@ -371,16 +397,16 @@ if solidfilter == "Yes":
 
         with project.edit(real_block_model) as bm:
             facet_points = bm.convert_to_block_coordinates(facet_points)
-            facet_points = facet_points + 0.5 * \
-                np.array([x_Resolution,  y_Resolution, z_Resolution])
+            facet_points = facet_points + 0.5 * np.array(
+                [x_Resolution, y_Resolution, z_Resolution]
+            )
 
         mesh = Trimesh(facet_points, facets, validate=True, use_embree=False)
         ray = ray_triangle.RayMeshIntersector(mesh)
-        blocks_inside_solid = np.where(
-            contains_points(ray, new_block_centroids))[0]
+        blocks_inside_solid = np.where(contains_points(ray, new_block_centroids))[0]
         blocks_inside_solid = new_block_centroids[blocks_inside_solid]
 
-        new_block_centroids = (blocks_inside_solid)
+        new_block_centroids = blocks_inside_solid
         new_block_centroids_collection.append(new_block_centroids)
     comparison = new_block_centroids_collection[0] == new_block_centroids_collection[1]
     equal_arrays = comparison.all()
@@ -389,8 +415,10 @@ if solidfilter == "Yes":
     # print(len(new_block_centroids_collection[0]), len(
     #     new_block_centroids_collection[1]))
     print(1 * "\n")
-    print("Number of new centroids that will be compared after solid restriction: " +
-          str(len(new_block_centroids)))
+    print(
+        "Number of new centroids that will be compared after solid restriction: "
+        + str(len(new_block_centroids))
+    )
     print(1 * "\n")
 
 
@@ -431,11 +459,14 @@ for block_model_index, item in enumerate(selection):
                 leave=True,
             ):
                 index_x_of_created_centroid = math.floor(
-                    created_block_value[0] / x_res[block_model_index])
+                    created_block_value[0] / x_res[block_model_index]
+                )
                 index_y_of_created_centroid = math.floor(
-                    created_block_value[1] / y_res[block_model_index])
+                    created_block_value[1] / y_res[block_model_index]
+                )
                 index_z_of_created_centroid = math.floor(
-                    created_block_value[2] / z_res[block_model_index])
+                    created_block_value[2] / z_res[block_model_index]
+                )
 
                 subblock_indices_for_orignal_block = reverse_grid_index[
                     block_model_index
@@ -484,7 +515,8 @@ for block_model_index, item in enumerate(selection):
                         elif check == len(subblock_indices_for_orignal_block):
                             check = 0
                             pointnotfound_in_indices_givenbygridindex.append(
-                                created_block_crawler)
+                                created_block_crawler
+                            )
                 else:
                     subblock_not_in_limits.append(created_block_crawler)
 
@@ -515,8 +547,11 @@ for points_index, (x, y) in enumerate(zip(gandu0, gandu1)):
         points_that_dont_match.append(points_index)
 
 print(1 * "\n")
-print("Percenatge of space matching: " +
-      str(100*len(points_that_match) / len(gandu0))+" %")
+print(
+    "Percenatge of space matching: "
+    + str(100 * len(points_that_match) / len(gandu0))
+    + " %"
+)
 # print("Percenatge of space not matching: "+str(100*len(points_that_dont_match) / len(gandu0))+" %")
 print(1 * "\n")
 
@@ -535,11 +570,14 @@ print(1 * "\n")
 
 
 while True:
-    number_to_restrict = (input(
-        "Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "))
+    number_to_restrict = input(
+        "Insert N to see a confusion matrix of top N domains (Confusion matrix including all domains will be stored as Entire_Matrix.png): "
+    )
     try:
         number_to_restrict = int(number_to_restrict)
-        if number_to_restrict < 0:  # if not a positive int print message and ask for input again
+        if (
+            number_to_restrict < 0
+        ):  # if not a positive int print message and ask for input again
             print("Sorry, input must be a positive integer, try again")
             continue
         break
@@ -548,33 +586,31 @@ while True:
 
 # Feature to display first N elemnts only on confusion matrix
 
-sub0_domains_not_needed, sub0_domain_counts = np.unique(
-    gandu0, return_counts=True)
-sub0_values = np.sort(np.asarray(
-    (sub0_domains_not_needed, sub0_domain_counts)).T)
+sub0_domains_not_needed, sub0_domain_counts = np.unique(gandu0, return_counts=True)
+sub0_values = np.sort(np.asarray((sub0_domains_not_needed, sub0_domain_counts)).T)
 count_sort_ind = np.argsort(-sub0_domain_counts)
 sub0_domains_not_needed = list(
-    sub0_domains_not_needed[count_sort_ind[number_to_restrict:]])
+    sub0_domains_not_needed[count_sort_ind[number_to_restrict:]]
+)
 
-sub1_domains_not_needed, sub1_domain_counts = np.unique(
-    gandu1, return_counts=True)
-sub1_values = np.sort(np.asarray(
-    (sub1_domains_not_needed, sub1_domain_counts)).T)
+sub1_domains_not_needed, sub1_domain_counts = np.unique(gandu1, return_counts=True)
+sub1_values = np.sort(np.asarray((sub1_domains_not_needed, sub1_domain_counts)).T)
 count_sort_ind = np.argsort(-sub1_domain_counts)
 sub1_domains_not_needed = list(
-    sub1_domains_not_needed[count_sort_ind[number_to_restrict:]])
+    sub1_domains_not_needed[count_sort_ind[number_to_restrict:]]
+)
 
 df3["sub0_edited"] = pd.Series(gandu0)
-df3["sub0_edited"] = df3["sub0_edited"].replace(
-    sub0_domains_not_needed, "others")
+df3["sub0_edited"] = df3["sub0_edited"].replace(sub0_domains_not_needed, "others")
 df3["sub1_edited"] = pd.Series(gandu1)
-df3["sub1_edited"] = df3["sub1_edited"].replace(
-    sub1_domains_not_needed, "others")
+df3["sub1_edited"] = df3["sub1_edited"].replace(sub1_domains_not_needed, "others")
 
 
 point_confusion_matrix_for_sub = pd.crosstab(
-    df3["sub0_edited"], df3["sub1_edited"], rownames=[
-        block_model_names[0]], colnames=[block_model_names[1]]
+    df3["sub0_edited"],
+    df3["sub1_edited"],
+    rownames=[block_model_names[0]],
+    colnames=[block_model_names[1]],
 )
 point_confusion_matrix_for_sub = pd.DataFrame(point_confusion_matrix_for_sub)
 
@@ -602,8 +638,10 @@ cm.show()
 
 
 point_confusion_matrix_for_sub = pd.crosstab(
-    df3["sub0"], df3["sub1"],  rownames=[
-        block_model_names[0]], colnames=[block_model_names[1]]
+    df3["sub0"],
+    df3["sub1"],
+    rownames=[block_model_names[0]],
+    colnames=[block_model_names[1]],
 )
 point_confusion_matrix_for_sub = pd.DataFrame(point_confusion_matrix_for_sub)
 
@@ -630,9 +668,3 @@ mt.savefig("Entire_Matrix.png", dpi=100)
 #         df["Points Domain"], df["Block Domains"], labels=colour_names, zero_division=1
 #     )
 # # )
-
-
-# In[24]:
-
-
-# In[ ]:
