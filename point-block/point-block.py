@@ -66,7 +66,7 @@ df = pd.DataFrame()
 objects_selected_in_project = project.get_selected()
 last_opacity = 255
 
-global M
+global length_of_selection
 length_of_selection = len(objects_selected_in_project)
 vis_collection = [0] * length_of_selection
 var_collection = [0] * length_of_selection
