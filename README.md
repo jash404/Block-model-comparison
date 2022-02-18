@@ -1,4 +1,5 @@
 <h1>Block-model-comparison</h1>
+<p><span style="color: #00ff00;">**Instructions for users who are using the exe.**</span></p>
 <h2>Sub-Sub</h2>
 <h4>To do this comparison follow these steps:</h4>
 <p>First select 2 Block Models in VGC.</p>
